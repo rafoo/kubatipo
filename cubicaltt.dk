@@ -5,7 +5,7 @@
 ;)
 
 (; Main source: https://arxiv.org/pdf/1611.02108.pdf ;)
-(; Author: Raphaël Cauderlier, License: CC0 ;)
+(; Author: Raphaël Cauderlier, License: UNLICENSE ;)
 
 (;
    We implement a fragment of Cubical Type Theory (CTT) in Dedukti.
