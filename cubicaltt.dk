@@ -140,7 +140,7 @@ def funExt (A : type) (B : term A -> type)
            (g : x : term A -> term (B x))
            (p : x : term A -> Path (B x) (f x) (g x)) :
            Path (Pi A B) (x => f x) (x => g x) :=
-  lam (Pi A B) (i => a => appP (i => B a) (f a) (g a) (p a) i).
+  lam (Pi A B) (i => a => app (B a) (f a) (g a) (p a) i).
 
 def singl (A : type) (a : term A) : type := Sigma A (path A a).
 
@@ -149,10 +149,10 @@ def contrSingl (A : type) (a : term A) (b : term A)
                Path (singl A a)
                  (pair A (path A a) a (refl A a))
                  (pair A (path A a) b p) :=
-  lamP (i => singl A a)
-    (i => pair A (path A a) (appP (i => A) a b p i)
-      (lamP (j => A)
-        (j => appP (i => A) a b p (min i j)))).
+  lam (singl A a)
+    (i => pair A (path A a) (app A a b p i)
+      (lam A
+        (j => app A a b p (min i j)))).
 
 (; Section 4: Systems, composition, and transport ;)
 
@@ -381,16 +381,16 @@ def trans_u (i : II) (j : II) (A : type)
             term' (trans_phi i) A :=
   System_intro A
     (precons A (i0 i) (__ => a)
-    (precons A (i1 i) (__ => appP (__ => A) b c q j)
+    (precons A (i1 i) (__ => app A b c q j)
     (prenil A)
     True_intro)
     (And_intro
        (Eq' (i0 i) (i1 i) A (__ => a)
-            (__ => appP (__ => A) b c q j))
+            (__ => app A b c q j))
             True
             (Hi0 => Hi1 =>
                not_0_and_1 i Hi0 Hi1
-                 (Eq (term A) a (appP (__ => A) b c q j)))
+                 (Eq (term A) a (app A b c q j)))
             True_intro)).
 
 (; The base of the transitivity (p i) ;)
@@ -398,31 +398,31 @@ def trans_a0 (i : II) (A : type) (a : term A) (b : term A) (c : term A)
              (p : Path A a b) (q : Path A b c) :
              term'' A (trans_phi i) (trans_u i 0 A a b c q) :=
   Ex_intro (term A) (x => Eq' 1F (trans_phi i) A (__ => x) (trans_u i 0 A a b c q))
-    (appP (i => A) a b p i)
+    (app A a b p i)
     (__ : Holds 1F =>
      H : Holds (trans_phi i) =>
       (; trans_phi i |- p i = trans_u ...;)
       for_elim_dep (i0 i) (for (i1 i) 0F)
         (H : Holds (trans_phi i) =>
          Eq (term A)
-            (appP (i => A) a b p i)
+            (app A a b p i)
             (trans_u i 0 A a b c q H))
         (H : Holds (i0 i) =>
-         i0_elim (i => Eq (term A) (appP (i => A) a b p i) a)
+         i0_elim (i => Eq (term A) (app A a b p i) a)
            i H (P => Ha : P a => Ha))
         (for_elim_dep (i1 i) 0F
          (H : Holds (for (i1 i) 0F) =>
           Eq (term A)
-             (appP (i => A) a b p i)
+             (app A a b p i)
              (trans_u i 0 A a b c q
                (for_intro_2 (i0 i) (for (i1 i) 0F) H)))
          (H : Holds (i1 i) =>
-          i1_elim (i => Eq (term A) (appP (i => A) a b p i) b)
+          i1_elim (i => Eq (term A) (app A a b p i) b)
             i H (P => Hb : P b => Hb))
          (H : Holds 0F =>
           0F_elim
             (Eq (term A)
-                (appP (i => A) a b p i)
+                (app A a b p i)
                 (0F_elim (term A) H))
             H))
         H).
@@ -439,6 +439,6 @@ def trans_comp_fst (A : type) (a : term A) (b : term A) (c : term A)
 def trans (A : type) (a : term A) (b : term A) (c : term A)
           (p : Path A a b) (q : Path A b c) :
           Path A a c :=
-  lamP (__ => A) (trans_comp_fst A a b c p q).
+  lam A (trans_comp_fst A a b c p q).
 
 
