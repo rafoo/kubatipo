@@ -1,0 +1,444 @@
+#NAME cubicaltt.
+(;
+   Check this file with:
+   dkcheck -nl -coc cubicaltt.dk
+;)
+
+(; Main source: https://arxiv.org/pdf/1611.02108.pdf ;)
+(; Author: Raphaël Cauderlier, License: CC0 ;)
+
+(;
+   We implement a fragment of Cubical Type Theory (CTT) in Dedukti.
+   Up to the proof of transitivity of paths.
+
+   The main difficulty is that CTT contains an operation that extends
+   conversion locally. This is not possible in Dedukti (conversion is
+   only extended by toplevel rewrite rules) so the encoding is not
+   totally shallow: some judgmental equalities in CTT are only
+   propositional in the encoding. They are encodied by Leibnitz equality.
+;)
+
+(; Some impredicative logic at the meta level ;)
+
+def Eq (A : Type) (a : A) (b : A) : Type := P : (A -> Type) -> P a -> P b.
+def True : Type := A : Type -> A -> A.
+def True_intro : True := A => a => a.
+def And (A : Type) (B : Type) : Type := C : Type -> (A -> B -> C) -> C.
+def And_intro (A : Type) (B : Type) (a : A) (b : B) : And A B :=
+  C : Type => f : (A -> B -> C) => f a b.
+def Ex (A : Type) (B : A -> Type) : Type :=
+  C : Type -> (a : A -> B a -> C) -> C.
+def Ex_intro (A : Type) (B : A -> Type) (a : A) (b : B a) : Ex A B :=
+  C : Type => f : (a : A -> B a -> C) => f a b.
+
+
+(; Section 2: Basic type theory ;)
+
+(; Universes ;)
+type : Type.
+def term : type -> Type.
+U : type.
+[] term U --> type.
+(; As in the cubicaltt implementation, we take U : U
+   (well, actually U : term U) ;)
+
+(; Dependent Product ;)
+Pi : A : type -> (term A -> type) -> type.
+[A,B] term (Pi A B) --> x : term A -> term (B x).
+def arr (A : type) (B : type) : type := Pi A (x => B).
+
+(; Dependent Sum ;)
+Sigma : A : type -> (term A -> type) -> type.
+sigma : A : type -> (term A -> type) -> Type.
+[A,B] term (Sigma A B) --> sigma A B.
+def pair : A : type -> B : (term A -> type) ->
+  a : term A -> term (B a) -> sigma A B.
+def fst : A : type -> B : (term A -> type) -> sigma A B -> term A.
+def snd : A : type -> B : (term A -> type) -> p : sigma A B ->
+  term (B (fst A B p)).
+(; beta ;)
+[a] fst _ _ (pair _ _ a _) --> a.
+[b] snd _ _ (pair _ _ _ b) --> b.
+(; eta ;)
+[A,B,p] pair A B (fst A B p) (snd A B p) --> p.
+def prod (A : type) (B : type) : type := Sigma A (x => B).
+def Prod (A : type) (B : type) : Type := term (prod A B).
+
+(; Natural Numbers ;)
+nat : type.
+Nat : Type.
+[] term nat --> Nat.
+zero : Nat.
+suc : Nat -> Nat.
+def natrec : P : (Nat -> type) ->
+             term (P zero) ->
+             (n : Nat -> term (P n) -> term (P (suc n))) ->
+             n : Nat -> term (P n).
+[a] natrec _ a _ zero --> a
+[P,a,b,n] natrec P a b (suc n) --> b n (natrec P a b n).
+
+(; Section 3: Path types ;)
+
+(; The interval ;)
+
+II : Type. (; this Dedukti type has no code in type ;)
+0 : II.
+1 : II.
+def opp : II -> II.
+def min : II -> II -> II.
+def max : II -> II -> II.
+
+[] opp 0 --> 1
+[] opp 1 --> 0
+[i] opp (opp i) --> i.
+[r,s] opp (min r s) --> max (opp r) (opp s)
+[r,s] opp (max r s) --> min (opp r) (opp s).
+[] min 0 _ --> 0
+[] min _ 0 --> 0
+[i] min 1 i --> i
+[i] min i 1 --> i.
+[i] max 0 i --> i
+[i] max i 0 --> i
+[] max 1 _ --> 1
+[] max _ 1 --> 1.
+
+(; We cannot add commutativity of min and max ;)
+(; We could have distributvity law but are they useful? ;)
+
+(; Path types ;)
+pathP : A : (II -> type) -> term (A 0) -> term (A 1) -> type.
+PathP : A : (II -> type) -> term (A 0) -> term (A 1) -> Type.
+[A,a,b] term (pathP A a b) --> PathP A a b.
+def lamP : A : (II -> type) -> f : (i : II -> term (A i)) ->
+  PathP A (f 0) (f 1).
+def appP : A : (II -> type) -> a : term (A 0) -> b : term (A 1) ->
+  PathP A a b -> i : II -> term (A i).
+[a] appP _ a _ _ 0 --> a
+[b] appP _ _ b _ 1 --> b
+[f,i] appP _ _ _ (lamP _ f) i --> f i. (; beta ;)
+[A,p] lamP A (i => appP A _ _ p i) --> p. (; eta ;)
+
+(; special case when A is constant ;)
+def path (A : type) : term A -> term A -> type := pathP (i => A).
+def Path (A : type) : term A -> term A -> Type := PathP (i => A).
+def lam (A : type) : f : (II -> term A) -> Path A (f 0) (f 1) :=
+  lamP (i => A).
+def app (A : type) :
+        a : term A -> b : term A -> Path A a b -> II -> term A :=
+  appP (i => A).
+
+(; Examples ;)
+def refl (A : type) (a : term A) : Path A a a := lam A (i => a).
+
+def fun_path (A : type) (B : type) (f : term A -> term B)
+             (a : term A) (a' : term A) (p : Path A a a') :
+             Path B (f a) (f a') :=
+  lam B (i => f (app A a a' p i)).
+
+def funExt (A : type) (B : term A -> type)
+           (f : x : term A -> term (B x))
+           (g : x : term A -> term (B x))
+           (p : x : term A -> Path (B x) (f x) (g x)) :
+           Path (Pi A B) (x => f x) (x => g x) :=
+  lam (Pi A B) (i => a => appP (i => B a) (f a) (g a) (p a) i).
+
+def singl (A : type) (a : term A) : type := Sigma A (path A a).
+
+def contrSingl (A : type) (a : term A) (b : term A)
+               (p : Path A a b) :
+               Path (singl A a)
+                 (pair A (path A a) a (refl A a))
+                 (pair A (path A a) b p) :=
+  lamP (i => singl A a)
+    (i => pair A (path A a) (appP (i => A) a b p i)
+      (lamP (j => A)
+        (j => appP (i => A) a b p (min i j)))).
+
+(; Section 4: Systems, composition, and transport ;)
+
+(; 4.1 The face lattice ;)
+
+FF : Type.
+0F : FF.
+1F : FF.
+i0 : II -> FF.                  (; i = 0 ;)
+i1 : II -> FF.                  (; i = 1 ;)
+fand : FF -> FF -> FF.          (; phi /\ psi ;)
+for : FF -> FF -> FF.           (; phi \/ psi ;)
+
+Holds : FF -> Type.
+(; The contexts Γ, φ and the judgment Γ ⊢ φ are respectively
+   represented by Γ, H : Holds φ and Γ ⊢ H : Holds φ ;)
+
+0F_elim : A : Type -> Holds 0F -> A.
+1F_intro : Holds 1F.
+def 1F_elim : x : Holds 1F -> P : (Holds 1F -> Type) -> P 1F_intro -> P x.
+fand_intro : phi : FF -> psi : FF ->
+  Holds phi -> Holds psi -> Holds (fand phi psi).
+def fand_elim_1 : phi : FF -> psi : FF ->
+  Holds (fand phi psi) -> Holds phi.
+def fand_elim_2 : phi : FF -> psi : FF ->
+  Holds (fand phi psi) -> Holds psi.
+for_intro_1 : phi : FF -> psi : FF ->
+  Holds phi -> Holds (for phi psi).
+for_intro_2 : phi : FF -> psi : FF ->
+  Holds psi -> Holds (for phi psi).
+def for_elim_dep : phi : FF -> psi : FF ->
+                   A : (Holds (for phi psi) -> Type) ->
+                   (H : Holds phi -> A (for_intro_1 phi psi H)) ->
+                   (H : Holds psi -> A (for_intro_2 phi psi H)) ->
+                   H : Holds (for phi psi) -> A H.
+def for_elim (phi : FF) (psi : FF) (A : Type) :
+             (Holds phi -> A) -> (Holds psi -> A) ->
+             Holds (for phi psi) -> A :=
+  for_elim_dep phi psi (__ => A).
+i0_intro : Holds (i0 0).
+i1_intro : Holds (i1 1).
+def i0_elim : P : (II -> Type) -> i : II ->
+  Holds (i0 i) -> P 0 -> P i.
+def i1_elim : P : (II -> Type) -> i : II ->
+  Holds (i1 i) -> P 1 -> P i.
+
+(; i cannot be 0 and 1 at the same time ;)
+def not_0_and_1 : i : II -> Holds (i0 i) -> Holds (i1 i) -> A : Type -> A.
+
+
+[H] 1F_elim 1F_intro _ H --> H.
+[H] fand_elim_1 _ _ (fand_intro _ _ H _) --> H.
+[H] fand_elim_2 _ _ (fand_intro _ _  _ H) --> H.
+[f,H] for_elim_dep _ _ _ f _ (for_intro_1 _ _ H) --> f H
+[f,H] for_elim_dep _ _ _ _ f (for_intro_2 _ _ H) --> f H.
+[a] i0_elim _ 0 i0_intro a --> a.
+[a] i1_elim _ 1 i1_intro a --> a.
+
+(; Holds is proof irrelevant ;)
+def FF_irrel : phi : FF -> H1 : Holds phi -> H2 : Holds phi ->
+  Eq (Holds phi) H1 H2.
+[H] FF_irrel _ H H --> P => HA => HA.
+
+def fsimpl : FF -> FF.
+def fsimpl_for : FF -> FF -> FF.
+def fsimpl_fand : FF -> FF -> FF.
+[] fsimpl 0F --> 0F
+[] fsimpl 1F --> 1F
+[] fsimpl (i0 0) --> 1F
+[] fsimpl (i0 1) --> 0F
+[] fsimpl (i1 0) --> 0F
+[] fsimpl (i1 1) --> 1F
+[phi,psi] fsimpl (fand phi psi) --> fsimpl_fand (fsimpl phi) (fsimpl psi)
+[phi,psi] fsimpl (for phi psi) --> fsimpl_for (fsimpl phi) (fsimpl psi).
+
+[phi] fsimpl_fand 1F phi --> phi
+[phi] fsimpl_fand phi 1F --> phi
+[] fsimpl_fand 0F _ --> 0F
+[] fsimpl_fand _ 0F --> 0F.
+
+[] fsimpl_for 1F _ --> 1F
+[] fsimpl_for _ 1F --> 1F
+[phi] fsimpl_for 0F phi --> phi
+[phi] fsimpl_for phi 0F --> phi.
+
+
+
+def fsimpl_correct : phi : FF -> Holds (fsimpl phi) -> Holds phi.
+def fsimpl_fand_correct : phi : FF -> psi : FF -> Holds (fsimpl_fand phi psi) -> Holds (fand phi psi).
+def fsimpl_for_correct : phi : FF -> psi : FF -> Holds (fsimpl_for phi psi) -> Holds (for phi psi).
+[H] fsimpl_correct 0F H --> H
+[H] fsimpl_correct 1F H --> H
+[] fsimpl_correct (i0 0) _ --> i0_intro
+[H] fsimpl_correct (i0 1) H -->
+  0F_elim (Holds (i0 1)) H
+[H] fsimpl_correct (i1 0) H -->
+  0F_elim (Holds (i1 0)) H
+[] fsimpl_correct (i1 1) _ --> i1_intro
+[phi,psi,H] fsimpl_correct (fand phi psi) H -->
+  fand_intro phi psi
+    (fsimpl_correct phi (fand_elim_1 (fsimpl phi) (fsimpl psi)
+      (fsimpl_fand_correct (fsimpl phi) (fsimpl psi) H)))
+    (fsimpl_correct psi (fand_elim_2 (fsimpl phi) (fsimpl psi)
+      (fsimpl_fand_correct (fsimpl phi) (fsimpl psi) H)))
+[phi,psi,H] fsimpl_correct (for phi psi) H -->
+  for_elim (fsimpl phi) (fsimpl psi) (Holds (for phi psi))
+    (Hphi : Holds (fsimpl phi) => for_intro_1 phi psi (fsimpl_correct phi Hphi))
+    (Hpsi : Holds (fsimpl psi) => for_intro_2 phi psi (fsimpl_correct psi Hpsi))
+    (fsimpl_for_correct (fsimpl phi) (fsimpl psi) H).
+
+[phi,H] fsimpl_fand_correct 0F phi H -->
+  0F_elim (Holds (fand 0F phi)) H
+[phi,H] fsimpl_fand_correct phi 0F H -->
+  0F_elim (Holds (fand phi 0F)) H
+[phi,H] fsimpl_fand_correct 1F phi H -->
+  fand_intro 1F phi 1F_intro H
+[phi,H] fsimpl_fand_correct phi 1F H -->
+  fand_intro phi 1F H 1F_intro.
+
+[phi,H] fsimpl_for_correct 0F phi H -->
+  for_intro_2 0F phi H
+[phi,H] fsimpl_for_correct phi 0F H -->
+  for_intro_1 phi 0F H
+[phi,H] fsimpl_for_correct 1F phi H -->
+  for_intro_1 1F phi 1F_intro
+[phi,H] fsimpl_for_correct phi 1F H -->
+  for_intro_2 phi 1F 1F_intro.
+
+(; "Γ ⊢ t : term' phi A" means Γ, phi ⊢ t : term A;)
+def term' (phi : FF) (A : type) := Holds phi -> term A.
+
+(; Equality between term's ;)
+
+def Eq' (phi : FF) (psi : FF) (A : type) (t : term' phi A) (u : term' psi A) :=
+  Hphi : Holds phi ->
+  Hpsi : Holds psi ->
+  Eq (term A) (t Hphi) (u Hpsi).
+
+(; 4.2 Syntax and inference rules for systems ;)
+
+(;
+  A presystem of type A is a list of pairs (phi, t) such that:
+  - t : term' phi A,
+  - for any pairs (phi, t) and (psi, u) in the system,
+     t and u agree on phi /\ psi,
+ ;)
+
+Presystem : type -> Type.
+def Consable : A : type -> phi : FF -> t : term' phi A -> Presystem A -> Type.
+
+prenil : A : type -> Presystem A.
+precons : A : type -> phi : FF -> t : term' phi A -> s : Presystem A ->
+  Consable A phi t s -> Presystem A.
+[] Consable _ _ _ (prenil _) --> True
+[A,phi,t,psi,u,s] Consable A phi t (precons _ psi u s _) -->
+  And (Eq' phi psi A t u) (Consable A phi t s).
+
+(; The side condition of a presystem is the disjunction of its formulae ;)
+def presystem_side : A : type -> Presystem A -> FF.
+[] presystem_side _ (prenil _) --> 0F
+[A,phi,s] presystem_side A (precons A phi _ s _) -->
+  for phi (presystem_side A s).
+
+(; A presystem of type A such that the side condition holds is a term
+   of type A ;)
+def System_intro : A : type -> s : Presystem A ->
+  term' (presystem_side A s) A.
+[A,phi,t,s]
+  System_intro A (precons A phi t s _)
+    -->
+  for_elim phi (presystem_side A s) (term A)
+    t (System_intro A s).
+[A] System_intro A (prenil A) --> 0F_elim (term A).
+
+(; 4.3 Composition operation ;)
+
+(; a : term'' A phi u represents a : A[phi |-> u] ;)
+def term'' (A : type) (phi : FF) (u : term' phi A) : Type :=
+  Ex (term A) (a => Eq' 1F phi A (__ => a) u).
+
+def fst'' (A : type) (phi : FF) (u : term' phi A) (t : term'' A phi u) :
+          term A
+ := t (term A) (a => __ => a).
+
+def comp : A : (II -> type) -> phi : FF -> u : (i : II -> term' phi (A i)) ->
+  a0 : term'' (A 0) phi (u 0) -> term'' (A 1) phi (u 1).
+
+(; If we have a proof of the formula phi (i.e. if we are on the
+   boundaries of the missing face), we can compute the boundaries of
+   the comp ;)
+
+def eval_comp (A : II -> type) (phi : FF) (u : i : II -> term' phi (A i))
+              (a0 : term'' (A 0) phi (u 0)) (H : Holds phi) :
+              term'' (A 1) phi (u 1) :=
+  Ex_intro (term (A 1)) (a => Eq' 1F phi (A 1) (__ => a) (u 1))
+       (u 1 H)
+       (__ => H' => P => FF_irrel phi H H' (H => P (u 1 H))).
+
+(;
+   We encode the conditional rewrite rule
+   [A,phi,u,a0] eval_comp A phi u a0 ? simpl phi == 1F --> eval_comp A phi u a0 (fsimpl_correct 1F_intro)
+ ;)
+
+def comp_aux : A : (II -> type) -> phi : FF -> u : (i : II -> term' phi (A i)) ->
+               a0 : term'' (A 0) phi (u 0) -> psi : FF -> (Holds psi -> Holds phi) -> term'' (A 1) phi (u 1).
+[A,phi,u,a0,f] comp_aux A phi u a0 1F f --> eval_comp A phi u a0 (f 1F_intro).
+[A,phi,u,a0] comp A phi u a0 --> comp_aux A phi u a0 (fsimpl phi) (fsimpl_correct phi).
+
+(; The first projection of comp ;)
+def comp_fst (A : II -> type) (phi : FF) (u : i : II -> term' phi (A i))
+             (a0 : term'' (A 0) phi (u 0)) : term (A 1) :=
+  fst'' (A 1) phi (u 1) (comp A phi u a0).
+
+
+(; IV Transitivity ;)
+
+(; The formula used to prove transitivity ;)
+def trans_phi (i : II) : FF := for (i0 i) (for (i1 i) 0F).
+
+(; The system used to prove transitivity:
+   [ (i = 0) -> a,
+     (i = 1) -> q j ]
+  ;)
+def trans_u (i : II) (j : II) (A : type)
+            (a : term A) (b : term A) (c : term A) (q : Path A b c) :
+            term' (trans_phi i) A :=
+  System_intro A
+    (precons A (i0 i) (__ => a)
+    (precons A (i1 i) (__ => appP (__ => A) b c q j)
+    (prenil A)
+    True_intro)
+    (And_intro
+       (Eq' (i0 i) (i1 i) A (__ => a)
+            (__ => appP (__ => A) b c q j))
+            True
+            (Hi0 => Hi1 =>
+               not_0_and_1 i Hi0 Hi1
+                 (Eq (term A) a (appP (__ => A) b c q j)))
+            True_intro)).
+
+(; The base of the transitivity (p i) ;)
+def trans_a0 (i : II) (A : type) (a : term A) (b : term A) (c : term A)
+             (p : Path A a b) (q : Path A b c) :
+             term'' A (trans_phi i) (trans_u i 0 A a b c q) :=
+  Ex_intro (term A) (x => Eq' 1F (trans_phi i) A (__ => x) (trans_u i 0 A a b c q))
+    (appP (i => A) a b p i)
+    (__ : Holds 1F =>
+     H : Holds (trans_phi i) =>
+      (; trans_phi i |- p i = trans_u ...;)
+      for_elim_dep (i0 i) (for (i1 i) 0F)
+        (H : Holds (trans_phi i) =>
+         Eq (term A)
+            (appP (i => A) a b p i)
+            (trans_u i 0 A a b c q H))
+        (H : Holds (i0 i) =>
+         i0_elim (i => Eq (term A) (appP (i => A) a b p i) a)
+           i H (P => Ha : P a => Ha))
+        (for_elim_dep (i1 i) 0F
+         (H : Holds (for (i1 i) 0F) =>
+          Eq (term A)
+             (appP (i => A) a b p i)
+             (trans_u i 0 A a b c q
+               (for_intro_2 (i0 i) (for (i1 i) 0F) H)))
+         (H : Holds (i1 i) =>
+          i1_elim (i => Eq (term A) (appP (i => A) a b p i) b)
+            i H (P => Hb : P b => Hb))
+         (H : Holds 0F =>
+          0F_elim
+            (Eq (term A)
+                (appP (i => A) a b p i)
+                (0F_elim (term A) H))
+            H))
+        H).
+
+def trans_comp_fst (A : type) (a : term A) (b : term A) (c : term A)
+                   (p : Path A a b) (q : Path A b c) (i : II) :=
+  comp_fst (__ : II => A)
+    (trans_phi i)
+    (j : II => trans_u i j A a b c q)
+    (trans_a0 i A a b c p q).
+
+(; Finally, the transitivity lemma ;)
+
+def trans (A : type) (a : term A) (b : term A) (c : term A)
+          (p : Path A a b) (q : Path A b c) :
+          Path A a c :=
+  lamP (__ => A) (trans_comp_fst A a b c p q).
+
+
