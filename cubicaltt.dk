@@ -18,19 +18,66 @@
    propositional in the encoding. They are encodied by Leibnitz equality.
 ;)
 
-(; Some impredicative logic at the meta level ;)
+(; Some meta logic ;)
 
-def Eq (A : Type) (a : A) (b : A) : Type := P : (A -> Type) -> P a -> P b.
-def True : Type := A : Type -> A -> A.
-def True_intro : True := A => a => a.
-def And (A : Type) (B : Type) : Type := C : Type -> (A -> B -> C) -> C.
-def And_intro (A : Type) (B : Type) (a : A) (b : B) : And A B :=
-  C : Type => f : (A -> B -> C) => f a b.
-def Ex (A : Type) (B : A -> Type) : Type :=
-  C : Type -> (a : A -> B a -> C) -> C.
-def Ex_intro (A : Type) (B : A -> Type) (a : A) (b : B a) : Ex A B :=
-  C : Type => f : (a : A -> B a -> C) => f a b.
+True : Type.
+True_intro : True.
 
+False : Type.
+
+Option : Type -> Type.
+None : A : Type -> Option A.
+Some : A : Type -> A -> Option A.
+
+Bool : Type.
+true : Bool.
+false : Bool.
+
+def and : Bool -> Bool -> Bool.
+[] and false _ --> false
+[b] and true b --> b.
+
+def or : Bool -> Bool -> Bool.
+[b] or false b --> b
+[] or true _ --> true.
+
+def isTrue : Bool -> Type.
+[] isTrue true --> True
+[] isTrue false --> False.
+
+def it_fst : b1 : Bool -> b2 : Bool -> isTrue (and b1 b2) -> isTrue b1.
+[H] it_fst false _ H --> H
+[b,H] it_fst true b H --> True_intro.
+
+def it_snd : b1 : Bool -> b2 : Bool -> isTrue (and b1 b2) -> isTrue b2.
+[H] it_snd true _ H --> H.
+
+def it_or_elim : Ret : Type -> b1 : Bool -> b2 : Bool ->
+                 (isTrue b1 -> Ret) -> (isTrue b2 -> Ret) ->
+                 isTrue (or b1 b2) -> Ret.
+[g,H] it_or_elim _ false _ _ g H --> g H
+[f,H] it_or_elim _ true _ f _ H --> f H.
+
+Nat : Type.
+zero : Nat.
+suc : Nat -> Nat.
+
+List : Type -> Type.
+Nil : A : Type -> List A.
+Cons : A : Type -> A -> List A -> List A.
+
+Vector : Nat -> Type -> Type.
+Vnil : A : Type -> Vector zero A.
+Vcons : n : Nat -> A : Type -> A -> Vector n A -> Vector (suc n) A.
+def vmap2 : n : Nat -> A : Type -> B : Type -> C : Type -> (A -> B -> C) -> Vector n A -> Vector n B -> Vector n C.
+[C] vmap2 zero _ _ C _ _ _ --> Vnil C
+[n,A,B,C,f,a,v,b,w] vmap2 _ A B C f (Vcons n _ a v) (Vcons _ _ b w) -->
+  Vcons n C (f a b) (vmap2 n A B C f v w).
+
+def head : n : Nat -> A : Type -> Vector (suc n) A -> A.
+[a] head _ _ (Vcons _ _ a _) --> a.
+def tail : n : Nat -> A : Type -> Vector (suc n) A -> Vector n A.
+[v] tail _ _ (Vcons _ _ _ v) --> v.
 
 (; Section 2: Basic type theory ;)
 
@@ -66,10 +113,7 @@ def Prod (A : type) (B : type) : Type := term (prod A B).
 
 (; Natural Numbers ;)
 nat : type.
-Nat : Type.
 [] term nat --> Nat.
-zero : Nat.
-suc : Nat -> Nat.
 def natrec : P : (Nat -> type) ->
              term (P zero) ->
              (n : Nat -> term (P n) -> term (P (suc n))) ->
@@ -158,287 +202,314 @@ def contrSingl (A : type) (a : term A) (b : term A)
 
 (; 4.1 The face lattice ;)
 
-FF : Type.
-0F : FF.
-1F : FF.
-i0 : II -> FF.                  (; i = 0 ;)
-i1 : II -> FF.                  (; i = 1 ;)
-fand : FF -> FF -> FF.          (; phi /\ psi ;)
-for : FF -> FF -> FF.           (; phi \/ psi ;)
+(; Contrary to the original representation, we do not represent face
+   constraints by formulae (which require handling simplification
+   rules such as (i = 0) /\ (j = 1) /\ (i = 1) --> false which are
+   complicated in Dedukti.
 
-Holds : FF -> Type.
-(; The contexts Γ, φ and the judgment Γ ⊢ φ are respectively
-   represented by Γ, H : Holds φ and Γ ⊢ H : Holds φ ;)
+   We represent face constraints by vectors whose ith element
+   indicates whether the ith dimension is 0, 1, or
+   unconstrained. These lists are parameterized by their length. ;)
 
-0F_elim : A : Type -> Holds 0F -> A.
-1F_intro : Holds 1F.
-def 1F_elim : x : Holds 1F -> P : (Holds 1F -> Type) -> P 1F_intro -> P x.
-fand_intro : phi : FF -> psi : FF ->
-  Holds phi -> Holds psi -> Holds (fand phi psi).
-def fand_elim_1 : phi : FF -> psi : FF ->
-  Holds (fand phi psi) -> Holds phi.
-def fand_elim_2 : phi : FF -> psi : FF ->
-  Holds (fand phi psi) -> Holds psi.
-for_intro_1 : phi : FF -> psi : FF ->
-  Holds phi -> Holds (for phi psi).
-for_intro_2 : phi : FF -> psi : FF ->
-  Holds psi -> Holds (for phi psi).
-def for_elim_dep : phi : FF -> psi : FF ->
-                   A : (Holds (for phi psi) -> Type) ->
-                   (H : Holds phi -> A (for_intro_1 phi psi H)) ->
-                   (H : Holds psi -> A (for_intro_2 phi psi H)) ->
-                   H : Holds (for phi psi) -> A H.
-def for_elim (phi : FF) (psi : FF) (A : Type) :
-             (Holds phi -> A) -> (Holds psi -> A) ->
-             Holds (for phi psi) -> A :=
-  for_elim_dep phi psi (__ => A).
-i0_intro : Holds (i0 0).
-i1_intro : Holds (i1 1).
-def i0_elim : P : (II -> Type) -> i : II ->
-  Holds (i0 i) -> P 0 -> P i.
-def i1_elim : P : (II -> Type) -> i : II ->
-  Holds (i1 i) -> P 1 -> P i.
+(; Atoms ::= true | i = 0 | i = 1 ;)
+FAtom : Type.
+FTrue : FAtom.
+FEq0 : FAtom.
+FEq1 : FAtom.
 
-(; i cannot be 0 and 1 at the same time ;)
-def not_0_and_1 : i : II -> Holds (i0 i) -> Holds (i1 i) -> A : Type -> A.
+(; intersection (i.e. conjunction) of atoms yields either an atom or
+   false. The type of these results is Option FAtom where None
+   represents empty intersection (i.e. false). ;)
 
+(; intersection of face atoms ;)
+def FAand : FAtom -> FAtom -> Option FAtom.
+[a] FAand FTrue a --> Some FAtom a
+[a] FAand a FTrue --> Some FAtom a
+[a] FAand a a --> Some FAtom a
+[] FAand FEq0 FEq1 --> None FAtom
+[] FAand FEq1 FEq0 --> None FAtom.
 
-[H] 1F_elim 1F_intro _ H --> H.
-[H] fand_elim_1 _ _ (fand_intro _ _ H _) --> H.
-[H] fand_elim_2 _ _ (fand_intro _ _  _ H) --> H.
-[f,H] for_elim_dep _ _ _ f _ (for_intro_1 _ _ H) --> f H
-[f,H] for_elim_dep _ _ _ _ f (for_intro_2 _ _ H) --> f H.
-[a] i0_elim _ 0 i0_intro a --> a.
-[a] i1_elim _ 1 i1_intro a --> a.
+(; A face in n-dimensions is a n-vector of atoms ;)
+def FFace (n : Nat) := Vector n FAtom.
 
-(; Holds is proof irrelevant ;)
-def FF_irrel : phi : FF -> H1 : Holds phi -> H2 : Holds phi ->
-  Eq (Holds phi) H1 H2.
-[H] FF_irrel _ H H --> P => HA => HA.
+(; FFaces are almost closed under intersection: intersecting two faces
+   can yield the empty set (or false), which we do not consider as a
+   face. Hence intersection of FFaces returns an FFace option. ;)
+def Fcons_opt : n : Nat -> Option (FAtom) -> Option (FFace n) ->
+  Option (FFace (suc n)).
+[n] Fcons_opt n (None _) _ --> None (FFace (suc n))
+[n] Fcons_opt n _ (None _) --> None (FFace (suc n))
+[n,a,F] Fcons_opt n (Some _ a) (Some _ F) -->
+  Some (FFace (suc n)) (Vcons n FAtom a F).
 
-def fsimpl : FF -> FF.
-def fsimpl_for : FF -> FF -> FF.
-def fsimpl_fand : FF -> FF -> FF.
-[] fsimpl 0F --> 0F
-[] fsimpl 1F --> 1F
-[] fsimpl (i0 0) --> 1F
-[] fsimpl (i0 1) --> 0F
-[] fsimpl (i1 0) --> 0F
-[] fsimpl (i1 1) --> 1F
-[phi,psi] fsimpl (fand phi psi) --> fsimpl_fand (fsimpl phi) (fsimpl psi)
-[phi,psi] fsimpl (for phi psi) --> fsimpl_for (fsimpl phi) (fsimpl psi).
+def FFand : n : Nat -> FFace n -> FFace n -> Option (FFace n).
+[] FFand _ (Vnil _) (Vnil _) --> Some (FFace zero) (Vnil FAtom)
+[n,a,b,F,G] FFand _ (Vcons n _ a F) (Vcons _ _ b G) -->
+  Fcons_opt n (FAand a b) (FFand n F G).
 
-[phi] fsimpl_fand 1F phi --> phi
-[phi] fsimpl_fand phi 1F --> phi
-[] fsimpl_fand 0F _ --> 0F
-[] fsimpl_fand _ 0F --> 0F.
+(; an union of faces is a list of faces ;)
 
-[] fsimpl_for 1F _ --> 1F
-[] fsimpl_for _ 1F --> 1F
-[phi] fsimpl_for 0F phi --> phi
-[phi] fsimpl_for phi 0F --> phi.
+def FF (n : Nat) := List (FFace n).
 
+def eval_atom : FAtom -> II -> II.
+[i] eval_atom FTrue i --> i
+[] eval_atom FEq0 _ --> 0
+[] eval_atom FEq1 _ --> 1.
 
+def eval_FFace (n : Nat) : FFace n -> Vector n II -> Vector n II :=
+  vmap2 n FAtom II II eval_atom.
 
-def fsimpl_correct : phi : FF -> Holds (fsimpl phi) -> Holds phi.
-def fsimpl_fand_correct : phi : FF -> psi : FF -> Holds (fsimpl_fand phi psi) -> Holds (fand phi psi).
-def fsimpl_for_correct : phi : FF -> psi : FF -> Holds (fsimpl_for phi psi) -> Holds (for phi psi).
-[H] fsimpl_correct 0F H --> H
-[H] fsimpl_correct 1F H --> H
-[] fsimpl_correct (i0 0) _ --> i0_intro
-[H] fsimpl_correct (i0 1) H -->
-  0F_elim (Holds (i0 1)) H
-[H] fsimpl_correct (i1 0) H -->
-  0F_elim (Holds (i1 0)) H
-[] fsimpl_correct (i1 1) _ --> i1_intro
-[phi,psi,H] fsimpl_correct (fand phi psi) H -->
-  fand_intro phi psi
-    (fsimpl_correct phi (fand_elim_1 (fsimpl phi) (fsimpl psi)
-      (fsimpl_fand_correct (fsimpl phi) (fsimpl psi) H)))
-    (fsimpl_correct psi (fand_elim_2 (fsimpl phi) (fsimpl psi)
-      (fsimpl_fand_correct (fsimpl phi) (fsimpl psi) H)))
-[phi,psi,H] fsimpl_correct (for phi psi) H -->
-  for_elim (fsimpl phi) (fsimpl psi) (Holds (for phi psi))
-    (Hphi : Holds (fsimpl phi) => for_intro_1 phi psi (fsimpl_correct phi Hphi))
-    (Hpsi : Holds (fsimpl psi) => for_intro_2 phi psi (fsimpl_correct psi Hpsi))
-    (fsimpl_for_correct (fsimpl phi) (fsimpl psi) H).
+Atom_Holds : FAtom -> II -> Type.
+AH0 : Atom_Holds FEq0 0.
+AH1 : Atom_Holds FEq1 1.
+AHT : i : II -> Atom_Holds FTrue i.
 
-[phi,H] fsimpl_fand_correct 0F phi H -->
-  0F_elim (Holds (fand 0F phi)) H
-[phi,H] fsimpl_fand_correct phi 0F H -->
-  0F_elim (Holds (fand phi 0F)) H
-[phi,H] fsimpl_fand_correct 1F phi H -->
-  fand_intro 1F phi 1F_intro H
-[phi,H] fsimpl_fand_correct phi 1F H -->
-  fand_intro phi 1F H 1F_intro.
+Face_Holds : n : Nat -> FFace n -> Vector n II -> Type.
+FHnil : Face_Holds zero (Vnil FAtom) (Vnil II).
+FHcons : n : Nat -> a : FAtom -> phi : FFace n ->
+         i : II -> is : Vector n II ->
+         Atom_Holds a i -> Face_Holds n phi is ->
+         Face_Holds (suc n) (Vcons n FAtom a phi) (Vcons n II i is).
 
-[phi,H] fsimpl_for_correct 0F phi H -->
-  for_intro_2 0F phi H
-[phi,H] fsimpl_for_correct phi 0F H -->
-  for_intro_1 phi 0F H
-[phi,H] fsimpl_for_correct 1F phi H -->
-  for_intro_1 1F phi 1F_intro
-[phi,H] fsimpl_for_correct phi 1F H -->
-  for_intro_2 phi 1F 1F_intro.
+Holds : n : Nat -> FF n -> Vector n II -> Type.
+HLeft : n : Nat -> phi : FFace n -> Phi : FF n -> is : Vector n II ->
+        Face_Holds n phi is -> Holds n (Cons (FFace n) phi Phi) is.
+HRight : n : Nat -> phi : FFace n -> Phi : FF n -> is : Vector n II ->
+         Holds n Phi is -> Holds n (Cons (FFace n) phi Phi) is.
 
-(; "Γ ⊢ t : term' phi A" means Γ, phi ⊢ t : term A;)
-def term' (phi : FF) (A : type) := Holds phi -> term A.
+def atom_simpl : FAtom -> II -> Bool.
+[] atom_simpl FTrue _ --> true
+[] atom_simpl FEq0 0 --> true
+[] atom_simpl FEq0 1 --> false
+[] atom_simpl FEq1 0 --> false
+[] atom_simpl FEq1 1 --> true.
 
-(; Equality between term's ;)
+def atom_simpl_correct : a : FAtom -> i : II -> isTrue (atom_simpl a i) ->
+                         Atom_Holds a i.
+[i] atom_simpl_correct FTrue i _ --> AHT i
+[] atom_simpl_correct FEq0 0 _ --> AH0
+[] atom_simpl_correct FEq1 1 _ --> AH1.
 
-def Eq' (phi : FF) (psi : FF) (A : type) (t : term' phi A) (u : term' psi A) :=
-  Hphi : Holds phi ->
-  Hpsi : Holds psi ->
-  Eq (term A) (t Hphi) (u Hpsi).
+def face_simpl : n : Nat -> FFace n -> Vector n II -> Bool.
+[] face_simpl zero (Vnil _) (Vnil _) --> true
+[n,a,phi,i,is] face_simpl _ (Vcons n _ a phi) (Vcons _ _ i is) -->
+  and (atom_simpl a i) (face_simpl n phi is).
+
+def face_simpl_correct : n : Nat -> phi : FFace n -> is : Vector n II ->
+                         isTrue (face_simpl n phi is) -> Face_Holds n phi is.
+[] face_simpl_correct zero (Vnil _) (Vnil _) _ --> FHnil
+[n,a,phi,i,is,H] face_simpl_correct _ (Vcons n _ a phi) (Vcons _ _ i is) H -->
+  FHcons n a phi i is
+         (atom_simpl_correct a i (it_fst (atom_simpl a i) (face_simpl n phi is) H))
+         (face_simpl_correct n phi is
+                             (it_snd (atom_simpl a i) (face_simpl n phi is) H)).
+
+def FF_simpl : n : Nat -> FF n -> Vector n II -> Bool.
+[] FF_simpl _ (Nil _) _ --> false
+[n,phi,Phi,is] FF_simpl n (Cons _ phi Phi) is -->
+  or (face_simpl n phi is) (FF_simpl n Phi is).
+
+def FF_simpl_correct : n : Nat -> Phi : FF n -> is : Vector n II ->
+                       isTrue (FF_simpl n Phi is) -> Holds n Phi is.
+[n,phi,Phi,is,H] FF_simpl_correct n (Cons _ phi Phi) is -->
+  it_or_elim (Holds n (Cons (FFace n) phi Phi) is)
+   (face_simpl n phi is)
+   (FF_simpl n Phi is)
+   (H => HLeft n phi Phi is (face_simpl_correct n phi is H))
+   (H => HRight n phi Phi is (FF_simpl_correct n Phi is H)).
+
+def one := suc zero.
+def two := suc one.
+
+def i0 : FFace one := Vcons zero FAtom FEq0 (Vnil FAtom).
+def i1 : FFace one := Vcons zero FAtom FEq1 (Vnil FAtom).
+
+(;
+
+   Γ, φ ⊢ a : A where φ is a face in an n-dimensional space and A is
+   an n-dimensional type is represented by Γ ⊢ a : face_term n phi A.
+
+   ;)
+
+def ntype (n : Nat) : Type := Vector n II -> type.
+
+def face_term (n : Nat) (phi : FFace n) (A : ntype n) : Type :=
+  is : Vector n II -> term (A (eval_FFace n phi is)).
 
 (; 4.2 Syntax and inference rules for systems ;)
 
 (;
-  A presystem of type A is a list of pairs (phi, t) such that:
-  - t : term' phi A,
-  - for any pairs (phi, t) and (psi, u) in the system,
-     t and u agree on phi /\ psi,
- ;)
 
-Presystem : type -> Type.
-def Consable : A : type -> phi : FF -> t : term' phi A -> Presystem A -> Type.
+  A presystem in dimension n and type A is a list of pairs (φ, t) such that:
+  - φ is a face in dimension n,
+  - t : face_term n φ A,
+  - for any pairs (φ, t) and (ψ, u) in the system, t and u agree on φ ∧ ψ,
 
-prenil : A : type -> Presystem A.
-precons : A : type -> phi : FF -> t : term' phi A -> s : Presystem A ->
-  Consable A phi t s -> Presystem A.
-[] Consable _ _ _ (prenil _) --> True
-[A,phi,t,psi,u,s] Consable A phi t (precons _ psi u s _) -->
-  And (Eq' phi psi A t u) (Consable A phi t s).
+  To check that t and u agree on φ ∧ ψ, we have two cases to consider,
+  if the intersection (φ ∧ ψ) is empty, we have nothing to check,
+  otherwise we compare t restricted to φ ∧ ψ and u restricted to φ ∧ ψ
+  using a variant of the heterogeneous equality (aka. John Major
+  Equality) defined as a partial function.
 
-(; The side condition of a presystem is the disjunction of its formulae ;)
-def presystem_side : A : type -> Presystem A -> FF.
-[] presystem_side _ (prenil _) --> 0F
-[A,phi,s] presystem_side A (precons A phi _ s _) -->
-  for phi (presystem_side A s).
+;)
 
-(; A presystem of type A such that the side condition holds is a term
-   of type A ;)
-def System_intro : A : type -> s : Presystem A ->
-  term' (presystem_side A s) A.
-[A,phi,t,s]
-  System_intro A (precons A phi t s _)
+def term_opt : n : Nat -> phi : Option (FFace n) -> A : ntype n -> Vector n II ->
+               Type.
+(; In the None case, we could use any inhabited type, the important
+   thing is that eval_face_opt always choose the same inhabitant, no
+   matter what the other arguments are ;)
+[] term_opt _ (None _) _ _ --> True
+[n,phi,A,is] term_opt n (Some _ phi) A is --> term (A (eval_FFace n phi is)).
+
+def eval_face_opt : n : Nat -> phi : Option (FFace n) -> A : ntype n ->
+                    (is : Vector n II -> term (A is)) ->
+                    (is : Vector n II -> term_opt n phi A is).
+[] eval_face_opt _ (None _) --> A => a => is => True_intro
+[n,phi,A,is,a] eval_face_opt n (Some _ phi) --> A => a => is => a (eval_FFace n phi is).
+
+def My_JMeq : Ret : Type -> A : Type -> B : Type -> a : A -> b : B -> Type.
+[Ret,A,a] My_JMeq Ret A A a a --> Ret.
+(; This is a partial function, assuming we know how to inhabit Ret, we
+   have a way to inhabit My_JMeq Ret A B a b IFF A == B and a == b. ;)
+
+(; Same but eta-expanse vectors to make more terms convertible. ;)
+def My_JMeq_vect : Ret : Type -> n : Nat ->
+                   A : (Vector n II -> Type) -> B : (Vector n II -> Type) ->
+                   a : (is : Vector n II -> A is) ->
+                   b : (is : Vector n II -> B is) -> Type.
+[Ret,A,B,a,b] My_JMeq_vect Ret zero A B a b -->
+  My_JMeq Ret (A (Vnil II)) (B (Vnil II)) (a (Vnil II)) (b (Vnil II))
+[Ret,n,A,B,a,b] My_JMeq_vect Ret (suc n) A B a b -->
+  My_JMeq_vect Ret n
+    (is => i : II -> A (Vcons n II i is))
+    (is => i : II -> B (Vcons n II i is))
+    (is => i => a (Vcons n II i is))
+    (is => i => b (Vcons n II i is)).
+
+
+(; System and consable are defined by Induction-Recursion ;)
+System : n : Nat -> ntype n -> Phi : FF n -> Type.
+def consable : n : Nat -> A : ntype n -> Phi : FF n -> phi : FFace n ->
+               face_term n phi A -> System n A Phi -> Type.
+prenil : n : Nat -> A : ntype n -> System n A (Nil (FFace n)).
+precons : n : Nat -> A : ntype n -> Phi : FF n ->
+  phi : FFace n ->
+  t : face_term n phi A ->
+  s : System n A Phi ->
+  consable n A Phi phi t s ->
+  System n A (Cons (FFace n) phi Phi).
+
+[] consable _ _ _ _ _ (prenil _ _) --> True
+[n,A,Phi,phi,t,psi,u,s] consable n A _ phi t (precons _ _ Phi psi u s _) -->
+  My_JMeq_vect (consable n A Phi phi t s) n
+    (is : Vector n II => term_opt n (FFand n phi psi) (is => A (eval_FFace n phi is)) is)
+    (is : Vector n II => term_opt n (FFand n phi psi) (is => A (eval_FFace n psi is)) is)
+    (eval_face_opt n (FFand n phi psi) (is => A (eval_FFace n phi is)) t)
+    (eval_face_opt n (FFand n phi psi) (is => A (eval_FFace n psi is)) u).
+
+def atom_term_Holds : A : (II -> type) ->
+                      a : FAtom -> i : II -> Atom_Holds a i ->
+                      term (A (eval_atom a i)) -> term (A i).
+[t] atom_term_Holds _ FTrue _ _ t --> t
+[t] atom_term_Holds _ FEq0 0 _ t --> t
+[t] atom_term_Holds _ FEq1 1 _ t --> t.
+
+def face_term_Holds : n : Nat -> A : ntype n -> phi : FFace n ->
+                      face_term n phi A -> is : Vector n II ->
+                      Face_Holds n phi is -> term (A is).
+[t] face_term_Holds zero _ (Vnil _) t (Vnil _) _ --> t (Vnil II)
+[A,n,a,phi,t,i,is,H1,H2]
+  face_term_Holds (suc n) A (Vcons _ _ a phi) t (Vcons _ _ i is) (FHcons _ _ _ _ _ H1 H2)
     -->
-  for_elim phi (presystem_side A s) (term A)
-    t (System_intro A s).
-[A] System_intro A (prenil A) --> 0F_elim (term A).
+  atom_term_Holds (i => A (Vcons n II i is)) a i
+    H1
+    (face_term_Holds n
+      (is => A (Vcons n II (eval_atom a i) is))
+      phi
+      (is => t (Vcons n II i is))
+      is
+      H2).
+
+def System_Holds : n : Nat -> A : ntype n -> Phi : FF n ->
+                   System n A Phi -> is : Vector n II ->
+                   Holds n Phi is -> term (A is).
+[n,A,phi,t,is,H]
+  System_Holds n A (Cons _ phi _) (precons _ _ _ _ t _ _) is (HLeft _ _ _ _ H)
+    -->
+  face_term_Holds n A phi t is H
+[n,A,Phi,s,is,H]
+  System_Holds n A (Cons _ _ Phi) (precons _ _ _ _ _ s _) is (HRight _ _ _ _ H)
+    -->
+  System_Holds n A Phi s is H.
+
+def compatible_term : n : Nat -> A : ntype n -> Phi : FF n -> System n A Phi ->
+                      (is : Vector n II -> term (A is)) -> Type.
+
+
+[] compatible_term _ _ _ (prenil _ _) _ --> True
+[n,A,Phi,phi,u,s,a] compatible_term n A _ (precons _ _ Phi phi u s _) a -->
+  My_JMeq_vect (compatible_term n A Phi s a) n
+    (is => term (A (eval_FFace n phi is)))
+    (is => term (A (eval_FFace n phi is)))
+    u
+    (is => a (eval_FFace n phi is)).
+
 
 (; 4.3 Composition operation ;)
 
-(; a : term'' A phi u represents a : A[phi |-> u] ;)
-def term'' (A : type) (phi : FF) (u : term' phi A) : Type :=
-  Ex (term A) (a => Eq' 1F phi A (__ => a) u).
+def comp : n : Nat ->           (; The dimension of the base ;)
+           A : (II -> ntype n) ->
+           Phi : FF n ->
+           u : (i : II -> System n (A i) Phi) ->
+           a0 : (is : Vector n II -> term (A 0 is)) ->
+           compatible_term n (A 0) Phi (u 0) a0 ->
+           is : Vector n II -> term (A 1 is).
 
-def fst'' (A : type) (phi : FF) (u : term' phi A) (t : term'' A phi u) :
-          term A
- := t (term A) (a => __ => a).
+def comp_compatible : n : Nat ->
+                      A : (II -> ntype n) ->
+                      Phi : FF n ->
+                      u : (i : II -> System n (A i) Phi) ->
+                      a0 : (is : Vector n II -> term (A 0 is)) ->
+                      H : compatible_term n (A 0) Phi (u 0) a0 ->
+                      compatible_term n (A 1) Phi (u 1) (comp n A Phi u a0 H).
 
-def comp : A : (II -> type) -> phi : FF -> u : (i : II -> term' phi (A i)) ->
-  a0 : term'' (A 0) phi (u 0) -> term'' (A 1) phi (u 1).
-
-(; If we have a proof of the formula phi (i.e. if we are on the
-   boundaries of the missing face), we can compute the boundaries of
-   the comp ;)
-
-def eval_comp (A : II -> type) (phi : FF) (u : i : II -> term' phi (A i))
-              (a0 : term'' (A 0) phi (u 0)) (H : Holds phi) :
-              term'' (A 1) phi (u 1) :=
-  Ex_intro (term (A 1)) (a => Eq' 1F phi (A 1) (__ => a) (u 1))
-       (u 1 H)
-       (__ => H' => P => FF_irrel phi H H' (H => P (u 1 H))).
-
-(;
-   We encode the conditional rewrite rule
-   [A,phi,u,a0] eval_comp A phi u a0 ? simpl phi == 1F --> eval_comp A phi u a0 (fsimpl_correct 1F_intro)
+(; We encode the conditional rule
+   [...] comp n A Phi u a0 H is ? FF_simpl Phi = True --> System_Holde ... u
  ;)
+def comp_aux : n : Nat -> A : (II -> ntype n) -> Phi : FF n ->
+               u : (i : II -> System n (A i) Phi) ->
+               a0 : (is : Vector n II -> term (A 0 is)) ->
+               compatible_term n (A 0) Phi (u 0) a0 ->
+               is : Vector n II ->
+               T : Type ->
+               (T -> term (A 1 is)) -> term (A 1 is).
+[F] comp_aux _ _ _ _ _ _ _ True F --> F True_intro.
+[n,A,Phi,u,a0,H,is] comp n A Phi u a0 H is -->
+   comp_aux n A Phi u a0 H is (isTrue (FF_simpl n Phi is))
+   (Hit => System_Holds n (A 1) Phi (u 1) is (FF_simpl_correct n Phi is Hit)).
 
-def comp_aux : A : (II -> type) -> phi : FF -> u : (i : II -> term' phi (A i)) ->
-               a0 : term'' (A 0) phi (u 0) -> psi : FF -> (Holds psi -> Holds phi) -> term'' (A 1) phi (u 1).
-[A,phi,u,a0,f] comp_aux A phi u a0 1F f --> eval_comp A phi u a0 (f 1F_intro).
-[A,phi,u,a0] comp A phi u a0 --> comp_aux A phi u a0 (fsimpl phi) (fsimpl_correct phi).
+def trans_Phi : FF one :=
+  Cons (FFace one) i0 (Cons (FFace one) i1 (Nil (FFace one))).
 
-(; The first projection of comp ;)
-def comp_fst (A : II -> type) (phi : FF) (u : i : II -> term' phi (A i))
-             (a0 : term'' (A 0) phi (u 0)) : term (A 1) :=
-  fst'' (A 1) phi (u 1) (comp A phi u a0).
-
-
-(; IV Transitivity ;)
-
-(; The formula used to prove transitivity ;)
-def trans_phi (i : II) : FF := for (i0 i) (for (i1 i) 0F).
-
-(; The system used to prove transitivity:
-   [ (i = 0) -> a,
-     (i = 1) -> q j ]
-  ;)
-def trans_u (i : II) (j : II) (A : type)
-            (a : term A) (b : term A) (c : term A) (q : Path A b c) :
-            term' (trans_phi i) A :=
-  System_intro A
-    (precons A (i0 i) (__ => a)
-    (precons A (i1 i) (__ => app A b c q j)
-    (prenil A)
-    True_intro)
-    (And_intro
-       (Eq' (i0 i) (i1 i) A (__ => a)
-            (__ => app A b c q j))
-            True
-            (Hi0 => Hi1 =>
-               not_0_and_1 i Hi0 Hi1
-                 (Eq (term A) a (app A b c q j)))
-            True_intro)).
-
-(; The base of the transitivity (p i) ;)
-def trans_a0 (i : II) (A : type) (a : term A) (b : term A) (c : term A)
-             (p : Path A a b) (q : Path A b c) :
-             term'' A (trans_phi i) (trans_u i 0 A a b c q) :=
-  Ex_intro (term A) (x => Eq' 1F (trans_phi i) A (__ => x) (trans_u i 0 A a b c q))
-    (app A a b p i)
-    (__ : Holds 1F =>
-     H : Holds (trans_phi i) =>
-      (; trans_phi i |- p i = trans_u ...;)
-      for_elim_dep (i0 i) (for (i1 i) 0F)
-        (H : Holds (trans_phi i) =>
-         Eq (term A)
-            (app A a b p i)
-            (trans_u i 0 A a b c q H))
-        (H : Holds (i0 i) =>
-         i0_elim (i => Eq (term A) (app A a b p i) a)
-           i H (P => Ha : P a => Ha))
-        (for_elim_dep (i1 i) 0F
-         (H : Holds (for (i1 i) 0F) =>
-          Eq (term A)
-             (app A a b p i)
-             (trans_u i 0 A a b c q
-               (for_intro_2 (i0 i) (for (i1 i) 0F) H)))
-         (H : Holds (i1 i) =>
-          i1_elim (i => Eq (term A) (app A a b p i) b)
-            i H (P => Hb : P b => Hb))
-         (H : Holds 0F =>
-          0F_elim
-            (Eq (term A)
-                (app A a b p i)
-                (0F_elim (term A) H))
-            H))
-        H).
-
-def trans_comp_fst (A : type) (a : term A) (b : term A) (c : term A)
-                   (p : Path A a b) (q : Path A b c) (i : II) :=
-  comp_fst (__ : II => A)
-    (trans_phi i)
-    (j : II => trans_u i j A a b c q)
-    (trans_a0 i A a b c p q).
+def trans_u (j : II) (A : type) (a : term A) (b : term A) (c : term A)
+            (q : Path A b c) : System one (is => A) trans_Phi :=
+  precons one (is => A) (Cons (FFace one) i1 (Nil (FFace one))) i0 (is => a)
+  (precons one (is => A) (Nil (FFace one)) i1 (is => app A b c q j)
+  (prenil one (is => A))
+  True_intro)
+  True_intro.
 
 (; Finally, the transitivity lemma ;)
 
 def trans (A : type) (a : term A) (b : term A) (c : term A)
-          (p : Path A a b) (q : Path A b c) :
-          Path A a c :=
-  lam A (trans_comp_fst A a b c p q).
+          (p : Path A a b) (q : Path A b c) : Path A a c :=
+  lam A
+    (i : II =>
+      comp one (j => is => A)
+        trans_Phi
+        (j => trans_u j A a b c q)
+        (is => app A a b p (head zero II is))
+        True_intro
+        (Vcons zero II i (Vnil II))).
 
-
+(; 4.4 Kan filling operation ;)
