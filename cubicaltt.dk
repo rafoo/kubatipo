@@ -311,7 +311,7 @@ def FF_simpl : n : Nat -> FF n -> Vector n II -> Bool.
 
 def FF_simpl_correct : n : Nat -> Phi : FF n -> is : Vector n II ->
                        isTrue (FF_simpl n Phi is) -> Holds n Phi is.
-[n,phi,Phi,is,H] FF_simpl_correct n (Cons _ phi Phi) is -->
+[n,phi,Phi,is] FF_simpl_correct n (Cons _ phi Phi) is -->
   it_or_elim (Holds n (Cons (FFace n) phi Phi) is)
    (face_simpl n phi is)
    (FF_simpl n Phi is)
@@ -513,3 +513,66 @@ def trans (A : type) (a : term A) (b : term A) (c : term A)
         (Vcons zero II i (Vnil II))).
 
 (; 4.4 Kan filling operation ;)
+
+def incr_dimension : n : Nat -> FF n -> FF (suc n).
+[n] incr_dimension n (Nil _) --> Nil (FFace (suc n))
+[n,phi,Phi] incr_dimension n (Cons _ phi Phi) -->
+  Cons (FFace (suc n))
+   (Vcons n FAtom FTrue phi)
+   (incr_dimension n Phi).
+
+def full_face : n : Nat -> FFace n.
+[] full_face zero --> Vnil FAtom
+[n] full_face (suc n) --> Vcons n FAtom FTrue (full_face n).
+
+def full_face_term : n : Nat -> A : ntype n -> (is : Vector n II -> term (A is)) ->
+                     face_term n (full_face n) A.
+[t] full_face_term zero _ t (Vnil _) --> t (Vnil II)
+[n,A,t,i,is] full_face_term (suc n) A t (Vcons _ _ i is) -->
+  full_face_term n (is => A (Vcons n II i is))
+  (is => t (Vcons n II i is)) is.
+
+def Vcons_Eq0_term : n : Nat -> A : (II -> ntype n) -> phi : FFace n ->
+                     a0 : face_term n phi (A 0) ->
+                     face_term (suc n) (Vcons n FAtom FEq0 phi)
+                       (is => A (head n II is) (tail n II is)).
+
+
+(; fillⁱ A [φ ↦ u] a₀ := compʲ A(i:=i∧j) [i=0 ↦ a₀, φ ↦ u(i:=i∧j)] a₀ ;)
+
+def fill_A (n : Nat) (A : II -> ntype n) (j : II) (is : Vector (suc n) II) : type :=
+  A (min (head n II is) j) (tail n II is).
+
+def fill_Phi (n : Nat) (Phi : FF n) : FF (suc n) :=
+  Cons (FFace (suc n)) (Vcons n FAtom FEq0 (full_face n)) (incr_dimension n Phi).
+
+def fill_u (j : II) (n : Nat) (A : II -> ntype n) (Phi : FF n)
+           (u : i : II -> System n (A i) Phi)
+           (a0 : is : Vector n II -> term (A 0 is))
+           (H : compatible_term n (A 0) Phi (u 0) a0) :
+           System (suc n) (fill_A n A j) (fill_Phi n Phi) :=
+  precons (suc n) (fill_A n A j)
+    (incr_dimension n Phi)
+    (Vcons n FAtom FEq0 (full_face n))
+    (Vcons_Eq0_term n A (full_face n) (full_face_term n (A 0) a0))
+    u
+    H.
+
+
+precons : n : Nat -> A : ntype n -> Phi : FF n ->
+  phi : FFace n ->
+  t : face_term n phi A ->
+  s : System n A Phi ->
+  consable n A Phi phi t s ->
+  System n A (Cons (FFace n) phi Phi).
+
+
+def fill (n : Nat) (i : II) (A : II -> ntype n) (Phi : FF n)
+         (u : i : II -> System n (A i) Phi)
+         (a0 : is : Vector n II -> term (A 0 is))
+         (H : compatible_term n (A 0) Phi (u 0) a0)
+         is : Vector n II -> term (A i is) :=
+  comp (suc n) (fill_A n A)
+    
+    (j =>
+      precons (suc n) (fill_A n A j) (Cons (FFace
