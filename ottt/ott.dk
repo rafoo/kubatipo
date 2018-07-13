@@ -319,7 +319,7 @@ def SYM (A : type) (B : type) (Q : Proof (EQ A B)) : Proof (EQ B A) :=
 def TRANS (A : type) (B : type) (C : type) (Q : Proof (EQ A B)) (Q' : Proof (EQ B C)) : Proof (EQ A C) :=
   coe (proof (EQ A B)) (proof (EQ A C)) (PAR A B A C (REFL A) Q') Q.
 
-Irr : A : Prop -> B : Prop -> Proof (EQ A B) ->
+Irr : A : Prop -> B : Prop -> Proof (EQ (proof A) (proof B)) ->
       Proof (all (proof A) (a => all (proof B) (b =>
         eq (proof A) a (proof B) b))).
 
