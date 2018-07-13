@@ -365,7 +365,7 @@ def eval_face_opt : n : Nat -> phi : Option (FFace n) -> A : ntype n ->
                     (is : Vector n II -> term (A is)) ->
                     (is : Vector n II -> term_opt n phi A is).
 [] eval_face_opt _ (None _) --> A => a => is => True_intro
-[n,phi,A,is,a] eval_face_opt n (Some _ phi) --> A => a => is => a (eval_FFace n phi is).
+[n,phi] eval_face_opt n (Some _ phi) --> A => a => is => a (eval_FFace n phi is).
 
 def My_JMeq : Ret : Type -> A : Type -> B : Type -> a : A -> b : B -> Type.
 [Ret,A,a] My_JMeq Ret A A a a --> Ret.
