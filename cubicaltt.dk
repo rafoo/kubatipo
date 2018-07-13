@@ -546,6 +546,8 @@ def fill_A (n : Nat) (A : II -> ntype n) (j : II) (is : Vector (suc n) II) : typ
 def fill_Phi (n : Nat) (Phi : FF n) : FF (suc n) :=
   Cons (FFace (suc n)) (Vcons n FAtom FEq0 (full_face n)) (incr_dimension n Phi).
 
+(;
+
 def fill_u (j : II) (n : Nat) (A : II -> ntype n) (Phi : FF n)
            (u : i : II -> System n (A i) Phi)
            (a0 : is : Vector n II -> term (A 0 is))
@@ -576,3 +578,5 @@ def fill (n : Nat) (i : II) (A : II -> ntype n) (Phi : FF n)
     
     (j =>
       precons (suc n) (fill_A n A j) (Cons (FFace
+
+;)
