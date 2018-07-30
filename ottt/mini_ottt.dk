@@ -1,0 +1,470 @@
+#NAME mini_ottt.
+
+(; Author: Raphaël Cauderlier, License: CC0 ;)
+
+(; Check with dkcheck -coc -nl ;)
+
+(; I Meta Type Theory ;)
+
+(; To keep this work simple, we do not consider Sigma-types in our
+type theory but only three particular cases: binary product (the
+non-dependent case), subset (the case where the predicate is
+propositional) and isEquiv(f) := (Σg. g∘f ~ id) × (Σg. f∘g ~ id). To
+unify these particular cases, we assume Σ-types in the meta-theory. ;)
+
+(; I.1 Types ;)
+0 : Type.
+1 : Type.
+2 : Type.
+SIGMA : (A : Type) -> (A -> Type) -> Type.
+
+(; I.2 Constructors ;)
+I : 1.
+tt : 2.
+ff : 2.
+Pair : A : Type -> B : (A -> Type) -> a : A -> B a -> SIGMA A B.
+
+(; I.3 Destructors ;)
+Bang : 0 -> A : Type -> A.
+def 1_elim : A : (1 -> Type) -> i : 1 -> A I -> A i.
+def If : A : (2 -> Type) -> b : 2 -> A tt -> A ff -> A b.
+def SIGMA_elim : A : Type -> B : (A -> Type) ->
+                 C : (SIGMA A B -> Type) ->
+                 p : SIGMA A B ->
+                 (a : A -> b : B a -> C (Pair A B a b)) ->
+                 C p.
+
+(; I.4 Computation rules ;)
+[a] 1_elim _ I a --> a.
+[t] If _ tt t _ --> t
+[f] If _ ff _ f --> f.
+[f,a,b] SIGMA_elim _ _ _ (Pair _ _ a b) f --> f a b.
+
+def FST (A : Type) (B : A -> Type) (p : SIGMA A B) : A :=
+  SIGMA_elim A B (p => A) p (a => b => a).
+def SND (A : Type) (B : A -> Type) (p : SIGMA A B) : B (FST A B p) :=
+  SIGMA_elim A B (p => B (FST A B p)) p (a => b => b).
+
+(; II Object Type Theory ;)
+
+type : Type.
+def term : type -> Type.
+prop : Type.
+def proof : prop -> type.
+def Proof (A : prop) : Type := term (proof A).
+
+empty : type.
+[] term empty --> 0.
+
+unit : type.
+[] term unit --> 1.
+
+bool : type.
+[] term bool --> 2.
+
+prod : type -> type -> type.
+def Sigma (A : type) (B : term A -> type) : Type :=
+  SIGMA (term A) (x => term (B x)).
+def Prod (A : type) (B : type) : Type :=
+  Sigma A (x => B).
+[A,B] term (prod A B) --> Prod A B.
+
+pi : A : type -> (term A -> type) -> type.
+[A,B] term (pi A B) --> x : term A -> term (B x).
+def arr (A : type) (B : type) : type := pi A (x => B).
+
+subset : A : type -> (term A -> prop) -> type.
+def Subset (A : type) (B : term A -> prop) : Type :=
+  Sigma A (x => proof (B x)).
+[A,B] term (subset A B) --> Subset A B.
+
+U : type.
+[] term U --> type.
+
+(; (leq) and (is_eq) are to be defined later ;)
+def leq : A : type -> term A -> term A -> type.
+def is_eq : A : type -> a : term A -> b : term A -> term (leq A a b) -> prop.
+def eq (A : type) (a : term A) (b : term A) : type :=
+  subset (leq A a b) (is_eq A a b).
+def Eq (A : type) (a : term A) (b : term A) : Type := term (eq A a b).
+
+isEquiv : A : type -> B : type -> (term A -> term B) -> type.
+def semi_inverse (A : type) (B : type)
+                 (f : term A -> term B) (g : term B -> term A) : type :=
+  pi A (x => eq A (g (f x)) x).
+def IsEquiv (A : type) (B : type) (f : term A -> term B) : Type :=
+  SIGMA (Sigma (arr B A) (g => semi_inverse A B f g))
+        (x => Sigma (arr B A) (g => semi_inverse B A g f)).
+[A,B,f] term (isEquiv A B f) --> IsEquiv A B f.
+
+(; Constructors ;)
+def pair (A : type) (B : type) (a : term A) (b : term B) : Prod A B :=
+  Pair (term A) (x => term B) a b.
+
+def wpair (A : type) (B : term A -> prop) (a : term A) (b : Proof (B a)) :
+    Subset A B :=
+  Pair (term A) (x => Proof (B x)) a b.
+
+(; Destructors ;)
+def bang (o : 0) (A : type) : term A := Bang o (term A).
+def unit_elim (A : 1 -> type) (i : 1) (a : term (A I)) : term (A i) :=
+  1_elim (i => term (A i)) i a.
+def if (A : 2 -> type) (b : 2) (t : term (A tt)) (f : term (A ff)) : term (A b) :=
+  If (b => term (A b)) b t f.
+
+def fst (A : type) (B : type) (p : Prod A B) : term A :=
+  FST (term A) (x => term B) p.
+def snd (A : type) (B : type) (p : Prod A B) : term B :=
+  SND (term A) (x => term B) p.
+
+def witness (A : type) (B : term A -> prop) (p : Subset A B) : term A :=
+  FST (term A) (x => Proof (B x)) p.
+def wproof (A : type) (B : term A -> prop) (p : Subset A B) :
+           Proof (B (witness A B p)) :=
+  SND (term A) (x => Proof (B x)) p.
+
+(; Propositional fragment ;)
+
+false : prop.
+true : prop.
+and : prop -> prop -> prop.
+imp : prop -> prop -> prop.
+all : A : type -> (term A -> prop) -> prop.
+is_equiv : A : type -> B : type -> (term A -> term B) -> prop.
+
+[] proof false --> empty
+[] proof true --> unit
+[A,B] proof (and A B) --> prod (proof A) (proof B)
+[A,B] proof (imp A B) --> arr (proof A) (proof B)
+[A,B] proof (all A B) --> pi A (x => proof (B x))
+[A,B,f] proof (is_equiv A B f) --> isEquiv A B f.
+
+def proj1 (A : prop) (B : prop) (ab : Proof (and A B)) : Proof A :=
+  fst (proof A) (proof B) ab.
+
+def proj2 (A : prop) (B : prop) (ab : Proof (and A B)) : Proof B :=
+  snd (proof A) (proof B) ab.
+
+def and_intro (A : prop) (B : prop) (a : Proof A) (b : Proof B) : Proof (and A B) :=
+  pair (proof A) (proof B) a b.
+
+(; III Equality ;)
+
+(; III.1 Definition ;)
+
+[] leq empty _ _ --> unit
+[] leq unit _ _ --> unit
+[] leq bool _ _ --> unit
+[A,B,ab,ab'] leq (prod A B) ab ab' -->
+  prod
+    (leq A (fst A B ab) (fst A B ab'))
+    (leq B (snd A B ab) (snd A B ab'))
+[A,B,f,g] leq (pi A B) f g --> pi A (x => leq (B x) (f x) (g x))
+[A,B,ab,ab'] leq (subset A B) ab ab' -->
+  leq A (witness A B ab) (witness A B ab')
+[A,B] leq U A B --> arr A B
+[] leq (isEquiv _ _ _) _ _ --> unit.
+
+[] is_eq empty _ _ _ --> true
+[] is_eq unit _ _ _ --> true
+[] is_eq bool tt tt _ --> true
+[] is_eq bool tt ff _ --> false
+[] is_eq bool ff tt _ --> false
+[] is_eq bool ff ff _ --> true
+[A,B,ab,ab',l] is_eq (prod A B) ab ab' l -->
+  and (is_eq A
+        (fst A B ab)
+        (fst A B ab')
+        (fst
+          (leq A (fst A B ab) (fst A B ab'))
+          (leq B (snd A B ab) (snd A B ab'))
+          l))
+      (is_eq B
+        (snd A B ab)
+        (snd A B ab')
+        (snd
+          (leq A (fst A B ab) (fst A B ab'))
+          (leq B (snd A B ab) (snd A B ab'))
+          l))
+[A,B,f,g,l] is_eq (pi A B) f g l -->
+  all A (x => is_eq (B x) (f x) (g x) (l x))
+[A,B,ab,ab',l] is_eq (subset A B) ab ab' l -->
+  is_eq A
+    (witness A B ab)
+    (witness A B ab')
+    l
+[A,B,f] is_eq U A B f --> is_equiv A B f
+[] is_eq (isEquiv _ _ _) _ _ _ --> true.
+
+(; III.2 Reflexivity ;)
+
+def leq_refl : A : type -> a : term A -> term (leq A a a).
+[] leq_refl empty _ --> I
+[] leq_refl unit _ --> I
+[] leq_refl bool _ --> I
+[A,B,ab] leq_refl (prod A B) ab -->
+  pair (leq A (fst A B ab) (fst A B ab))
+       (leq B (snd A B ab) (snd A B ab))
+       (leq_refl A (fst A B ab))
+       (leq_refl B (snd A B ab))
+[A,B,f] leq_refl (pi A B) f -->
+  x : term A => leq_refl (B x) (f x)
+[A,B,ab] leq_refl (subset A B) ab -->
+  leq_refl A (witness A B ab)
+[A] leq_refl U A --> x : term A => x
+[] leq_refl (isEquiv _ _ _) _ --> I.
+
+is_eq_refl : A : type -> a : term A -> Proof (is_eq A a a (leq_refl A a)).
+def refl (A : type) (a : term A) : Eq A a a :=
+  wpair (leq A a a) (is_eq A a a) (leq_refl A a) (is_eq_refl A a).
+
+(; III.3 Transitivity ;)
+
+def leq_trans : A : type -> a : term A -> b : term A -> c : term A ->
+                term (leq A a b) -> term (leq A b c) -> term (leq A a c).
+[] leq_trans empty _ _ _ _ _ --> I
+[] leq_trans unit _ _ _ _ _ --> I
+[] leq_trans bool _ _ _ _ _ --> I
+[A,B,ab,ab',ab'',l,l'] leq_trans (prod A B) ab ab' ab'' l l' -->
+  pair (leq A (fst A B ab) (fst A B ab''))
+       (leq B (snd A B ab) (snd A B ab''))
+       (leq_trans A
+         (fst A B ab)
+         (fst A B ab')
+         (fst A B ab'')
+         (fst
+            (leq A (fst A B ab) (fst A B ab'))
+            (leq B (snd A B ab) (snd A B ab'))
+            l)
+         (fst
+            (leq A (fst A B ab') (fst A B ab''))
+            (leq B (snd A B ab') (snd A B ab''))
+            l'))
+       (leq_trans B
+         (snd A B ab)
+         (snd A B ab')
+         (snd A B ab'')
+         (snd
+            (leq A (fst A B ab) (fst A B ab'))
+            (leq B (snd A B ab) (snd A B ab'))
+            l)
+         (snd
+            (leq A (fst A B ab') (fst A B ab''))
+            (leq B (snd A B ab') (snd A B ab''))
+            l'))
+[A,B,f,g,h,l,l'] leq_trans (pi A B) f g h l l' -->
+  x : term A => leq_trans (B x) (f x) (g x) (h x) (l x) (l' x)
+[A,B,ab,ab',ab'',l,l'] leq_trans (subset A B) ab ab' ab'' l l' -->
+  leq_trans A
+    (witness A B ab)
+    (witness A B ab')
+    (witness A B ab'')
+    l l'
+[A,B,C,f,g] leq_trans U A B C f g --> x : term A => g (f x)
+[] leq_trans (isEquiv _ _ _) _ _ _ _ _ --> I.
+
+is_eq_trans : A : type -> a : term A -> b : term A -> c : term A ->
+              lab : term (leq A a b) ->
+              lbc : term (leq A b c) ->
+              Proof (is_eq A a b lab) ->
+              Proof (is_eq A b c lbc) ->
+              Proof (is_eq A a c (leq_trans A a b c lab lbc)).
+def trans (A : type) (a : term A) (b : term A) (c : term A)
+          (hab : Eq A a b) (hbc : Eq A b c) : Eq A a c :=
+  wpair (leq A a c) (is_eq A a c)
+    (leq_trans A a b c
+       (witness (leq A a b) (is_eq A a b) hab)
+       (witness (leq A b c) (is_eq A b c) hbc))
+    (is_eq_trans A a b c
+       (witness (leq A a b) (is_eq A a b) hab)
+       (witness (leq A b c) (is_eq A b c) hbc)
+       (wproof (leq A a b) (is_eq A a b) hab)
+       (wproof (leq A b c) (is_eq A b c) hbc)).
+
+(; III.4 Symmetry ;)
+
+(; Note that leq is only a pre-order because (leq bool tt ff) and (leq
+bool ff tt) are both inhabited. And also (leq U unit bool) and (leq U
+bool unit). leq is not symmetric either because (leq U empty unit) is
+inhabited but (leq U unit empty) is not. However, eq is symmetric. ;)
+
+def eqv_inverse : A : type -> B : type -> f : (term A -> term B) ->
+              IsEquiv A B f -> term B -> term A.
+[A,B,f,H] eqv_inverse A B f H -->
+  FST (term B -> term A) (g => term (semi_inverse A B f g))
+    (FST (Sigma (arr B A) (g => semi_inverse A B f g))
+         (x => Sigma (arr B A) (g => semi_inverse B A g f)) H).
+
+def leq_sym : A : type -> a : term A -> b : term A ->
+              l : term (leq A a b) ->
+              Proof (is_eq A a b l) ->
+              term (leq A b a).
+[] leq_sym empty _ _ _ _ --> I
+[] leq_sym unit _ _ _ _ --> I
+[] leq_sym bool _ _ _ _ --> I
+[A,B,ab,ab',l,h] leq_sym (prod A B) ab ab' l h -->
+(; This is very verbose but not very complicated. If we had implicit
+arguments, we could just write (leq_sym (fst h), leq_sym (snd h)) ;)
+  (a : term A =>
+   b : term B =>
+   a' : term A =>
+   b' : term B =>
+   l : term (leq (prod A B) (pair A B a b) (pair A B a' b')) =>
+   h : Proof (is_eq (prod A B) (pair A B a b) (pair A B a' b') l) =>
+   (la : term (leq A a a') =>
+    lb : term (leq B b b') =>
+    h : Proof (is_eq (prod A B) (pair A B a b) (pair A B a' b')
+          (pair (leq A a a') (leq B b b') la lb)) =>
+    (ha : Proof (is_eq A a a' la) =>
+     hb : Proof (is_eq B b b' lb) =>
+     pair (leq A a' a) (leq B b' b)
+          (leq_sym A a a' la ha)
+          (leq_sym B b b' lb hb))
+    (proj1 (is_eq A a a' la) (is_eq B b b' lb) h)
+    (proj2 (is_eq A a a' la) (is_eq B b b' lb) h))
+   (fst (leq A a a') (leq B b b') l)
+   (snd (leq A a a') (leq B b b') l)
+   h)
+  (fst A B ab)
+  (snd A B ab)
+  (fst A B ab')
+  (snd A B ab')
+  l h.
+[A,B,f,g,l,h] leq_sym (pi A B) f g l h -->
+  x : term A => leq_sym (B x) (f x) (g x) (l x) (h x)
+[A,B,ab,ab',l,h] leq_sym (subset A B) ab ab' l h -->
+  leq_sym A
+    (witness A B ab)
+    (witness A B ab')
+    l h
+[A,B,f,h] leq_sym U A B f h --> eqv_inverse A B f h
+[] leq_sym (isEquiv _ _ _) _ _ _ _ --> I.
+
+is_eq_sym : A : type -> a : term A -> b : term A ->
+            l : term (leq A a b) ->
+            h : Proof (is_eq A a b l) ->
+            Proof (is_eq A b a (leq_sym A a b l h)).
+def sym (A : type) (a : term A) (b : term A)
+        (H : Eq A a b) : Eq A b a :=
+  wpair (leq A b a) (is_eq A b a)
+    (leq_sym A a b
+       (witness (leq A a b) (is_eq A a b) H)
+       (wproof (leq A a b) (is_eq A a b) H))
+    (is_eq_sym A a b
+       (witness (leq A a b) (is_eq A a b) H)
+       (wproof (leq A a b) (is_eq A a b) H)).
+
+
+(; III.5 Proof irrelevance
+
+   Two proofs of the same proposition are equal.
+
+   We have defined equality in such a way that this result is very
+   easy to obtain.
+
+   In particular, we do not need to look at the definition of
+   equivalence. ;)
+
+def proof_irrelevance_leq : P : prop -> p1 : Proof P -> p2 : Proof P ->
+                            term (leq (proof P) p1 p2).
+
+[] proof_irrelevance_leq false _ _ --> I
+[] proof_irrelevance_leq true _ _ --> I
+[A,B,p1,p2] proof_irrelevance_leq (and A B) p1 p2 -->
+  pair (leq (proof A) (proj1 A B p1) (proj1 A B p2))
+       (leq (proof B) (proj2 A B p1) (proj2 A B p2))
+       (proof_irrelevance_leq A (proj1 A B p1) (proj1 A B p2))
+       (proof_irrelevance_leq B (proj2 A B p1) (proj2 A B p2))
+[A,B,p1,p2] proof_irrelevance_leq (imp A B) p1 p2 -->
+  x : Proof A =>
+  proof_irrelevance_leq B (p1 x) (p2 x)
+[A,B,p1,p2] proof_irrelevance_leq (all A B) p1 p2 -->
+  x : term A =>
+  proof_irrelevance_leq (B x) (p1 x) (p2 x).
+[] proof_irrelevance_leq (is_equiv _ _ _) _ _ --> I.
+
+def proof_irrelevance_is_eq : P : prop -> p1 : Proof P -> p2 : Proof P ->
+       Proof (is_eq (proof P) p1 p2 (proof_irrelevance_leq P p1 p2)).
+
+[] proof_irrelevance_is_eq false _ _ --> I
+[] proof_irrelevance_is_eq true _ _ --> I
+[A,B,p1,p2] proof_irrelevance_is_eq (and A B) p1 p2 -->
+  and_intro
+       (is_eq (proof A) (proj1 A B p1) (proj1 A B p2)
+          (proof_irrelevance_leq A (proj1 A B p1) (proj1 A B p2)))
+       (is_eq (proof B) (proj2 A B p1) (proj2 A B p2)
+          (proof_irrelevance_leq B (proj2 A B p1) (proj2 A B p2)))
+       (proof_irrelevance_is_eq A (proj1 A B p1) (proj1 A B p2))
+       (proof_irrelevance_is_eq B (proj2 A B p1) (proj2 A B p2))
+[A,B,p1,p2] proof_irrelevance_is_eq (imp A B) p1 p2 -->
+  x : Proof A =>
+  proof_irrelevance_is_eq B (p1 x) (p2 x)
+[A,B,p1,p2] proof_irrelevance_is_eq (all A B) p1 p2 -->
+  x : term A =>
+  proof_irrelevance_is_eq (B x) (p1 x) (p2 x).
+[] proof_irrelevance_is_eq (is_equiv _ _ _) _ _ --> I.
+
+def proof_irrelevance (P : prop) (p1 : Proof P) (p2 : Proof P) :
+                      Eq (proof P) p1 p2 :=
+  wpair (leq (proof P) p1 p2) (is_eq (proof P) p1 p2)
+    (proof_irrelevance_leq P p1 p2)
+    (proof_irrelevance_is_eq P p1 p2).
+
+
+(; III.6 Transport and Monotonicity ;)
+
+prop_ind : A : type -> P : (a : term A -> b : term A -> Eq A a b -> prop) ->
+           (a : term A -> Proof (P a a (refl A a))) ->
+           a : term A -> b : term A -> h : Eq A a b -> Proof (P a b h).
+
+def transport : A : type -> P : (term A -> type) -> a : term A -> b : term A ->
+                Eq A a b -> term (P a) -> term (P b).
+(; We prove this mostly by induction on P ;)
+
+[x,p] transport _ _ x x (Pair _ _ (leq_refl _ _) _) p --> p.
+[f,p] transport U (x => x) _ _ (Pair _ _ f _) p --> f p
+[p] transport _ (x => _) _ _ _ p --> p
+[X,A,B,x,y,h,z] transport X (x => prod (A x) (B x)) x y h z -->
+  pair (A y) (B y)
+    (transport X (x => A x) x y h (fst (A x) (B x) z))
+    (transport X (x => B x) x y h (snd (A x) (B x) z))
+[X,A,B,x,y,h,f] transport X (x => pi (A x) (__ => B x)) x y h f -->
+  (; /!\ This is a restricted case (non-dependent arrow), we probably
+     need a notion of heterogeneous equality for the general case ;)
+  ay : term (A y) =>
+  (ax : term (A x) =>
+   transport X (x => B x) x y h (f ax))
+  (transport X (x => A x) y x (sym X x y h) ay)
+[X,A,B,x,y,h,z] transport X (x => subset (A x) (B x)) x y h z -->
+  wpair (A y) (B y)
+    (transport X (x => A x) x y h (witness (A x) (B x) z))
+    (prop_ind X
+      (x => y => h =>
+       all (subset (A x) (B x)) (z =>
+         imp (B x (witness (A x) (B x) z))
+         (B y (transport X (x => A x) x y h (witness (A x) (B x) z)))))
+      (w => z => h => h)
+      x y h z (wproof (A x) (B x) z)).
+
+def monotonicity : X : type -> A : type -> f : (term X -> term A) ->
+                   x : term X -> y : term X -> Eq X x y ->
+                   term (leq A (f x) (f y)).
+(; We prove this by induction on A ;)
+
+[A,B,f,x] monotonicity A B f x x (Pair _ _ (leq_refl _ _) _) --> leq_refl B (f x)
+[] monotonicity _ empty _ _ _ _ --> I
+[] monotonicity _ unit _ _ _ _ --> I
+[] monotonicity _ bool _ _ _ _ --> I
+[X,A,B,F,x,y,h] monotonicity X (prod A B) F x y h -->
+  pair (leq A (fst A B (F x)) (fst A B (F y)))
+       (leq B (snd A B (F x)) (snd A B (F y)))
+       (monotonicity X A (x => fst A B (F x)) x y h)
+       (monotonicity X B (x => snd A B (F x)) x y h)
+[X,A,B,f,x,y,h] monotonicity X (subset A B) f x y h -->
+  monotonicity X A (x => witness A B (f x)) x y h
+[X,A,B,F,x,y,h] monotonicity X (pi A B) F x y h -->
+  z : term A =>
+  monotonicity X (B z) (x => F x z) x y h
+[X,F,x,y,h] monotonicity X U F x y h --> transport X F x y h
+[] monotonicity _ (isEquiv _ _ _) _ _ _ _ --> I.
+

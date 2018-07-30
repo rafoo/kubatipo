@@ -1,0 +1,82 @@
+This directory contains various attempts at extending Observational
+Type Theory (OTT) to the univalence axiom.
+
+
+
+The starting point is the paper "Observational Equality, Now!" by
+Thorsten Altenkirch, Conor McBride, and Wouter Swierstra. This paper
+introduces OTT, a type theory in which:
+
+- all the usual type constructions of MLTT are there (0, 1, 2, Π, Σ,
+  W) but no universe hierarchy;
+
+- equality is heterogeneous and written (x : A) = (y : B) to emphasize
+  that the types A and B of the term arguments need not be
+  syntactically identical. However, from (x : A) = (y : B) we can
+  always prove the type equality A = B (equality at the level of types
+  is remains homogeneous);
+
+- this heterogeneous equality is defined by induction on the types of
+  its arguments;
+
+- functional extensionaliy is provable; actually the definition of
+  equality in the case of Π-types is
+  ((f : Πx : A. B x) = (g : Πx : A'. B' x)) :=
+    Πx : A. Πy : A'. (x : A) = (y : A') → (f x : B x) = (g y : B' y)
+  which is the most natural way of asserting extensionality for the
+  heterogeneous equality.
+
+- the theory is strongly normalising (this is usual);
+
+- the theory is canonical: every closed term of type 2 is either true
+  or false. This is the main difference with MLTT + axiom of
+  extensionality.
+
+OTT is easy to implement in Dedukti, such an encoding is provided in
+the file ott.dk.
+
+We then have 3 slightly different (but all rather unsuccessful)
+attempts to lift OTT to univalent universes:
+
+eqv.dk:
+
+  A key insight in OTT is to distinguish a syntactic fragments of
+  types which have at most one inhabitant. These are called
+  propositions. This propositional fragment in OTT is
+    P ::= 0 | 1 | P × P | ΠX : S. P
+
+  The main benefit of distinguishing this fragment in OTT is that we
+  can freely add (consistent) axioms in this fragment without
+  compromising canonicity.
+
+  In eqv.dk, we extend this fragment with a proposition isEquiv(f)
+  stating that the function f : A → B is actually an equivalence. To
+  preserve the non-interaction between propositions and data, we have
+  restricted the way extract data (an inverse) from a proof of
+  isEquiv(f).
+
+  We implement a fragment of MLTT without the full sigma types but
+  only two particular cases:
+  - non-dependent (A × B)
+  - subtype {x : A | B x} where (B x) is a proposition.
+
+  Thanks to this restriction, we do not need to consider heterogeneous
+  equality and we can straightforwardly define equivalence by A ≃ B :=
+  {f : A → B | isEquiv(f)}.
+
+  It is then easy to prove that equality is an equivalence relation
+  but the based-path-induction property is only partially proved (by
+  induction on the predicate, some cases are missing).
+
+mini_ottt.dk:
+
+  sigma is also restricted to non-dep and subtype, eq A a b := {x :
+  leq A a b | iseq x} leq U A B := A -> B.
+
+full_ottt.dk:
+
+  Despite the name, this encoding lacks some features of type theory:
+  a universe hierarchy and W types. However, Σ-types are not
+  restricted. Similarly to the "mini" version, equality is defnined
+  from a preorder leq such that leq U A B := A -> B.
+

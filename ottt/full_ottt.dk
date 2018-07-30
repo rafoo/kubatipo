@@ -1,0 +1,259 @@
+#NAME full_ottt.
+
+(; Author: Raphaël Cauderlier, License: CC0 ;)
+
+(; TODO: add universe levels ;)
+(; TODO: add W types ;)
+
+type : Type.
+def term : type -> Type.
+Prop : Type.
+proof : Prop -> type.
+def Proof (A : Prop) : Type := term (proof A).
+
+false : Prop.
+0 : Type.
+[] term (proof false) --> 0.
+bang : P : type -> 0 -> term P.
+
+true : Prop.
+1 : Type.
+[] term (proof true) --> 1.
+I : 1.
+def 1_elim : P : (1 -> type) -> i : 1 -> term (P I) -> term (P i).
+[p] 1_elim _ I p --> p.
+
+bool : type.
+2 : Type.
+[] term bool --> 2.
+tt : 2.
+ff : 2.
+def 2_elim : P : (2 -> type) -> b : 2 -> term (P tt) -> term (P ff) -> term (P b).
+[t] 2_elim _ tt t _ --> t
+[f] 2_elim _ ff _ f --> f.
+
+sig : A : type -> (term A -> type) -> type.
+Sig : A : type -> (term A -> type) -> Type.
+[A,B] term (sig A B) --> Sig A B.
+pair : A : type -> B : (term A -> type) ->
+       a : term A -> term (B a) -> term (sig A B).
+def Sig_elim : A : type -> B : (term A -> type) -> P : (Sig A B -> type) ->
+               p : Sig A B ->
+               (a : term A -> b : term (B a) -> term (P (pair A B a b))) ->
+               term (P p).
+[f,a,b] Sig_elim _ _ _ (pair _ _ a b) f --> f a b.
+def fst (A : type) (B : term A -> type) (p : Sig A B) : term A :=
+  Sig_elim A B (p => A) p (a => b => a).
+def snd (A : type) (B : term A -> type) (p : Sig A B) : term (B (fst A B p)) :=
+  Sig_elim A B (p => B (fst A B p)) p (a => b => b).
+
+pi : A : type -> (term A -> type) -> type.
+[A,B] term (pi A B) --> x : term A -> term (B x).
+def arr (A : type) (B : type) : type := pi A (x => B).
+
+nat : type.
+Nat : Type.
+[] term nat --> Nat.
+zero : Nat.
+succ : Nat -> Nat.
+def Nat_elim : P : (Nat -> type) -> n : Nat ->
+               term (P zero) ->
+               (m : Nat -> term (P m) -> term (P (succ m))) ->
+               term (P n).
+[p0] Nat_elim _ zero p0 _ --> p0
+[P,n,p0,pS] Nat_elim P (succ n) p0 pS --> pS n (Nat_elim P n p0 pS).
+
+U : type.
+[] term U --> type.
+
+and : Prop -> Prop -> Prop.
+And : Prop -> Prop -> Type.
+[A,B] term (proof (and A B)) --> And A B.
+and_intro : A : Prop -> B : Prop -> Proof A -> Proof B -> And A B.
+def and_elim : A : Prop -> B : Prop -> C : Prop -> And A B ->
+               (Proof A -> Proof B -> Proof C) -> Proof C.
+[f,a,b] and_elim _ _ _ (and_intro _ _ a b) f --> f a b.
+def proj1 (A : Prop) (B : Prop) (p : And A B) : Proof A :=
+  and_elim A B A p (a => b => a).
+def proj2 (A : Prop) (B : Prop) (p : And A B) : Proof B :=
+  and_elim A B B p (a => b => b).
+
+imp : Prop -> Prop -> Prop.
+[A,B] term (proof (imp A B)) --> Proof A -> Proof B.
+
+all : A : type -> (term A -> Prop) -> Prop.
+[A,B] term (proof (all A B)) --> x : term A -> Proof (B x).
+
+ex : A : Prop -> (Proof A -> Prop) -> Prop.
+Ex : A : Prop -> (Proof A -> Prop) -> Type.
+[A,B] term (proof (ex A B)) --> Ex A B.
+ex_intro : A : Prop -> B : (Proof A -> Prop) -> a : Proof A -> Proof (B a) -> Ex A B.
+def ex_elim : A : Prop -> B : (Proof A -> Prop) ->
+              P : (Ex A B -> Prop) -> ab : Ex A B ->
+              (a : Proof A -> b : Proof (B a) -> Proof (P (ex_intro A B a b))) ->
+              Proof (P ab).
+[f,a,b] ex_elim _ _ _ (ex_intro _ _ a b) f --> f a b.
+def ex_fst (A : Prop) (B : Proof A -> Prop) (ab : Ex A B) : Proof A :=
+  ex_elim A B (ab => A) ab (a => b => a).
+def ex_snd (A : Prop) (B : Proof A -> Prop) (ab : Ex A B) : Proof (B (ex_fst A B ab)) :=
+  ex_elim A B (ab => B (ex_fst A B ab)) ab (a => b => b).
+
+
+
+subset : A : type -> (term A -> Prop) -> type.
+Subset : A : type -> (term A -> Prop) -> Type.
+[A,B] term (subset A B) --> Subset A B.
+wpair : A : type -> B : (term A -> Prop) ->
+        a : term A -> Proof (B a) -> Subset A B.
+def witness : A : type -> B : (term A -> Prop) ->
+              Subset A B -> term A.
+def wproof : A : type -> B : (term A -> Prop) ->
+             p : Subset A B -> Proof (B (witness A B p)).
+[a] witness _ _ (wpair _ _ a _) --> a.
+[b] wproof _ _ (wpair _ _ _ b) --> b.
+
+
+is_equiv : A : type -> B : type -> (term A -> term B) -> Prop.
+IsEquiv : A : type -> B : type -> (term A -> term B) -> Type.
+[A,B,f] term (proof (is_equiv A B f)) --> IsEquiv A B f.
+
+
+def lheq : A : type -> B : type -> f : (term A -> term B) ->
+           IsEquiv A B f -> term A -> term B -> type.
+def Lheq (A : type) (B : type) (f : term A -> term B)
+         (H : IsEquiv A B f) (a : term A) (b : term B) : Type :=
+  term (lheq A B f H a b).
+
+def is_heq : A : type -> B : type -> f : (term A -> term B) ->
+             H : IsEquiv A B f -> a : term A -> b : term B ->
+             Lheq A B f H a b -> Prop.
+
+def IsHeq (A : type) (B : type) (f : term A -> term B)
+          (H : IsEquiv A B f) (a : term A) (b : term B)
+          (l : Lheq A B f H a b) : Type :=
+  Proof (is_heq A B f H a b l).
+
+def heq (A : type) (B : type) (f : term A -> term B)
+        (H : IsEquiv A B f) (a : term A) (b : term B) : type :=
+  subset (lheq A B f H a b) (is_heq A B f H a b).
+
+def Heq (A : type) (B : type) (f : term A -> term B)
+        (H : IsEquiv A B f) (a : term A) (b : term B) : Type :=
+  term (heq A B f H a b).
+
+(; Note that the definitions of lheq and is_heq are very partial! ;)
+def leq : A : type -> term A -> term A -> type.
+def Leq (A : type) (a : term A) (b : term A) : Type :=
+  term (leq A a b).
+[A,a,b] lheq A A (x => x) _ a b --> leq A a b.
+
+def is_eq : A : type -> a : term A -> b : term A -> Leq A a b -> Prop.
+def IsEq (A : type) (a : term A) (b : term A) (l : Leq A a b) : Type :=
+  Proof (is_eq A a b l).
+[A,a,b,l] is_heq A A (x => x) _ a b l --> is_eq A a b l.
+
+def eq (A : type) (a : term A) (b : term A) : type :=
+  subset (leq A a b) (is_eq A a b).
+
+def Eq (A : type) (a : term A) (b : term A) : Type :=
+  term (eq A a b).
+
+eqv_intro : A : type -> B : type -> f : (term A -> term B) ->
+            g : (term B -> term A) -> Hgf : (x : term A -> Eq A (g (f x)) x) ->
+            h : (term B -> term A) -> Hfg : (y : term B -> Eq B (f (h y)) y) ->
+            IsEquiv A B f.
+
+def eqv_leftinv : A : type -> B : type -> f : (term A -> term B) ->
+                  IsEquiv A B f -> term B -> term A.
+[g] eqv_leftinv _ _ _ (eqv_intro _ _ _ g _ _ _) --> g.
+
+(; Syntax:
+
+   Types ::= proof P
+             bool
+             sig A B
+             pi A B
+             nat
+             U
+             subset A B
+
+   Propositions ::= false
+                    true
+                    and A B
+                    imp A B
+                    all A B
+                    ex A B
+                    isEquiv A B f
+ ;)
+
+def transport : A : type -> P : (term A -> type) -> a : term A -> b : term A ->
+                l : Leq A a b -> IsEq A a b l -> term (P a) -> term (P b).
+
+def transport_eqv : A : type -> P : (term A -> type) -> a : term A -> b : term A ->
+                    l : Leq A a b -> H : IsEq A a b l ->
+                    IsEquiv (P a) (P b) (transport A P a b l H).
+
+def leq_sig_A (A : type) (B : term A -> type) (ab : Sig A B) (ab' : Sig A B) : type
+ := leq A (fst A B ab) (fst A B ab').
+
+def leq_sig_B (A : type) (B : term A -> type) (ab : Sig A B) (ab' : Sig A B)
+              (la : term (leq_sig_A A B ab ab')) : type :=
+  pi (proof (is_eq A (fst A B ab) (fst A B ab') la)) (ha =>
+  lheq (B (fst A B ab)) (B (fst A B ab'))
+       (transport A B (fst A B ab) (fst A B ab') la ha)
+       (transport_eqv A B (fst A B ab) (fst A B ab') la ha)
+       (snd A B ab) (snd A B ab')).
+
+[] leq (proof _) _ _ --> proof true
+[] leq bool _ _ --> proof true
+[A,B,ab,ab'] leq (sig A B) ab ab' -->
+  sig (leq_sig_A A B ab ab') (leq_sig_B A B ab ab')
+[A,B,f,g] leq (pi A B) f g -->
+  pi A (x => leq (B x) (f x) (g x))
+[] leq nat _ _ --> proof true
+[A,B] leq U A B --> arr A B
+[A,B,ab,ab'] leq (subset A B) ab ab' -->
+  leq A (witness A B ab) (witness A B ab').
+
+def bool_eq : 2 -> 2 -> Prop.
+[] bool_eq tt tt --> true
+[] bool_eq tt ff --> false
+[] bool_eq ff tt --> false
+[] bool_eq ff ff --> true.
+
+def nat_eq : Nat -> Nat -> Prop.
+[] nat_eq zero zero --> true
+[] nat_eq zero (succ _) --> false
+[] nat_eq (succ _) zero --> false
+[m,n] nat_eq (succ m) (succ n) --> nat_eq m n.
+
+[P] is_eq (proof P) _ _ _ --> true
+[b1,b2] is_eq bool b1 b2 _ --> bool_eq b1 b2
+[A,B,ab,ab',l] is_eq (sig A B) ab ab' l -->
+  (la : term (leq_sig_A A B ab ab') =>
+   lb : term (leq_sig_B A B ab ab' la) =>
+   ex (is_eq A (fst A B ab) (fst A B ab') la)
+    (ha =>
+     is_heq (B (fst A B ab)) (B (fst A B ab'))
+        (transport A B (fst A B ab) (fst A B ab') la ha)
+        (transport_eqv A B (fst A B ab) (fst A B ab') la ha)
+        (snd A B ab) (snd A B ab') (lb ha)))
+  (fst (leq_sig_A A B ab ab') (leq_sig_B A B ab ab') l)
+  (snd (leq_sig_A A B ab ab') (leq_sig_B A B ab ab') l)
+[A,B,f,g,l] is_eq (pi A B) f g l -->
+  all A (x => is_eq (B x) (f x) (g x) (l x))
+[m,n] is_eq nat m n _ --> nat_eq m n
+[A,B,f] is_eq U A B f --> is_equiv A B f
+[A,B,ab,ab',l] is_eq (subset A B) ab ab' l -->
+  is_eq A (witness A B ab) (witness A B ab') l.
+
+(; I am afraid that (leq (sig A (a => proof (P a))) ab ab') is
+   equivalent to (eq A (fst ab) (fst ab')) which is strictly stronger
+   than (leq (subset A P) ab ab').
+
+   Hence leq might be used to distinguish two equivalent types and
+   this is inconsistent with univalence...
+
+   Maybe I should replace the first component of (leq (sig ...)) by
+   something weaker but I do not know what. It seems that a full
+   equality is needed for transport. ;)

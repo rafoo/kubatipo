@@ -1,0 +1,553 @@
+#NAME eqv.
+
+(; Author: Raphaël Cauderlier, License: CC0 ;)
+
+(; Check with dkcheck -coc -nl ;)
+
+(; I Basic Type Theory ;)
+
+type : Type.
+def term : type -> Type.
+prop : Type.
+def Proof : prop -> Type.
+
+empty : type.
+0 : Type.
+[] term empty --> 0.
+
+unit : type.
+1 : Type.
+[] term unit --> 1.
+
+bool : type.
+2 : Type.
+[] term bool --> 2.
+
+prod : type -> type -> type.
+Prod : type -> type -> Type.
+[A,B] term (prod A B) --> Prod A B.
+
+pi : A : type -> (term A -> type) -> type.
+Pi : A : type -> (term A -> type) -> Type.
+[A,B] term (pi A B) --> Pi A B.
+def arr (A : type) (B : type) : type := pi A (x => B).
+
+subset : A : type -> (term A -> prop) -> type.
+Subset : A : type -> (term A -> prop) -> Type.
+[A,B] term (subset A B) --> Subset A B.
+
+U : type.
+[] term U --> type.
+
+(; Constructors ;)
+I : 1.
+tt : 2.
+ff : 2.
+
+pair : A : type -> B : type -> term A -> term B -> Prod A B.
+wpair : A : type -> B : (term A -> prop) -> a : term A -> Proof (B a) -> Subset A B.
+
+def lam : A : type -> B : (term A -> type) -> (a : term A -> term (B a)) -> Pi A B.
+
+(; Destructors ;)
+def bang : 0 -> A : type -> term A.
+def unit_elim : A : (1 -> type) -> i : 1 -> term (A I) -> term (A i).
+[a] unit_elim _ I a --> a.
+def if : A : (2 -> type) -> b : 2 -> term (A tt) -> term (A ff) -> term (A b).
+[t] if _ tt t _ --> t
+[f] if _ ff _ f --> f.
+
+def fst : A : type -> B : type -> Prod A B -> term A.
+[a] fst _ _ (pair _ _ a _) --> a.
+
+def snd : A : type -> B : type -> Prod A B -> term B.
+[b] snd _ _ (pair _ _ _ b) --> b.
+
+def witness : A : type -> B : (term A -> prop) -> Subset A B -> term A.
+[a] witness _ _ (wpair _ _ a _) --> a.
+
+def wproof : A : type -> B : (term A -> prop) -> p : Subset A B ->
+             Proof (B (witness A B p)).
+[b] wproof _ _ (wpair _ _ _ b) --> b.
+
+def app : A : type -> B : (term A -> type) -> f : Pi A B -> a : term A -> term (B a).
+[f,a] app _ _ (lam _ _ f) a --> f a.
+
+def arrlam (A : type) (B : type) := lam A (x : term A => B).
+def arrapp (A : type) (B : type) := app A (x : term A => B).
+
+(; Propositional fragment ;)
+
+false : prop.
+true : prop.
+And : prop -> prop -> Type.
+and : prop -> prop -> prop.
+Imp : prop -> prop -> Type.
+imp : prop -> prop -> prop.
+All : A : type -> (term A -> prop) -> Type.
+all : A : type -> (term A -> prop) -> prop.
+
+[] Proof false --> 0
+[] Proof true --> 1
+[A,B] Proof (and A B) --> And A B
+[A,B] Proof (imp A B) --> Imp A B
+[A,B] Proof (all A B) --> All A B.
+
+true_intro : Proof true.
+and_intro : A : prop -> B : prop -> Proof A -> Proof B -> And A B.
+imp_intro : A : prop -> B : prop -> (Proof A -> Proof B) -> Imp A B.
+all_intro : A : type -> B : (term A -> prop) ->
+            (a : term A -> Proof (B a)) -> All A B.
+
+false_elim : A : prop -> Proof false -> Proof A.
+
+def proj1 : A : prop -> B : prop -> And A B -> Proof A.
+(; [a] proj1 _ _ (and_intro _ _ a _) --> a. ;)
+
+def proj2 : A : prop -> B : prop -> And A B -> Proof B.
+(; [b] proj2 _ _ (and_intro _ _ _ b) --> b. ;)
+
+def imp_elim : A : prop -> B : prop -> Imp A B -> Proof A -> Proof B.
+(; [f,a] imp_elim _ _ (imp_intro _ _ f) a --> f a. ;)
+
+def all_elim : A : type -> B : (term A -> prop) -> All A B ->
+               a : term A -> Proof (B a).
+(; [f,a] all_elim _ _ (all_intro _ _ f) a --> f a. ;)
+
+(; Equivalence ;)
+
+def id (A : type) : term (arr A A) := arrlam A A (x => x).
+
+def arrcomp (A : type) (B : type) (C : type)
+            (f : term (arr A B)) (g : term (arr B C)) : term (arr A C) :=
+  arrlam A C (x => arrapp B C g (arrapp A B f x)).
+
+IsEquiv : A : type -> B : type -> term (arr A B) -> Type.
+is_equiv : A : type -> B : type -> term (arr A B) -> prop.
+[A,B,f] Proof (is_equiv A B f) --> IsEquiv A B f.
+
+def iseqv_intro_type :
+  A : type -> B : type -> term (arr A B) -> term (arr B A) -> Type.
+def iseqv_intro_type_aux : A : type -> B : type ->
+    term (arr A B) -> term (arr A A) -> term (arr B B) -> Type.
+
+[A,B,f,g] iseqv_intro_type A B f g -->
+  iseqv_intro_type_aux A B f
+    (arrcomp A B A f g)
+    (arrcomp B A B g f).
+[A,B,f] iseqv_intro_type_aux A B f (lam _ _ (x => x)) (lam _ _ (y => y)) -->
+  IsEquiv A B f.
+
+iseqv_intro : A : type -> B : type ->
+              f : term (arr A B) -> g : term (arr B A) ->
+              iseqv_intro_type A B f g.
+
+def iseqv_inv : A : type -> B : type -> f : term (arr A B) -> IsEquiv A B f ->
+                term (arr B A).
+[A] iseqv_inv A A (lam _ _ (x => x)) _ --> arrlam A A (x => x).
+
+[A,B,f,x] app B (__ => A) (iseqv_inv A B f _) (app A (__ => B) f x) --> x
+[A,B,f,x] app A (__ => B) f (app B (__ => A) (iseqv_inv A B f _) x) --> x.
+
+def iseqv_refl (A : type) : IsEquiv A A (arrlam A A (x => x)) :=
+  iseqv_intro A A (arrlam A A (x => x)) (arrlam A A (x => x)).
+
+def iseqv_sym (A : type) (B : type) (f : term (arr A B))
+              (h : IsEquiv A B f) : IsEquiv B A (iseqv_inv A B f h) :=
+  iseqv_intro B A (iseqv_inv A B f h) f.
+
+def iseqv_trans (A : type) (B : type) (C : type)
+                (f : term (arr A B)) (g : term (arr B C))
+                (hf : IsEquiv A B f) (hg : IsEquiv B C g) :
+                IsEquiv A C (arrcomp A B C f g) :=
+  iseqv_intro A C (arrcomp A B C f g)
+    (arrcomp C B A (iseqv_inv B C g hg) (iseqv_inv A B f hf)).
+
+def eqv (A : type) (B : type) := subset (arr A B) (is_equiv A B).
+def Eqv (A : type) (B : type) := term (eqv A B).
+
+def eqv_intro (A : type) (B : type) (f : term (arr A B))
+              (h : IsEquiv A B f) : Eqv A B :=
+  wpair (arr A B) (is_equiv A B) f h.
+
+def eqv_coe (A : type) (B : type) (h : Eqv A B) : term (arr A B) :=
+  witness (arr A B) (is_equiv A B) h.
+
+def eqv_iseqv (A : type) (B : type) (h : Eqv A B) : IsEquiv A B (eqv_coe A B h) :=
+  wproof (arr A B) (is_equiv A B) h.
+
+def eqv_refl (A : type) : Eqv A A :=
+  eqv_intro A A (arrlam A A (x => x)) (iseqv_refl A).
+
+def eqv_sym (A : type) (B : type) (h : Eqv A B) : Eqv B A :=
+  eqv_intro B A (iseqv_inv A B (eqv_coe A B h) (eqv_iseqv A B h))
+    (iseqv_sym A B (eqv_coe A B h) (eqv_iseqv A B h)).
+
+def eqv_trans (A : type) (B : type) (C : type) (hAB : Eqv A B) (hBC : Eqv B C) : Eqv A C :=
+  eqv_intro A C (arrcomp A B C (eqv_coe A B hAB) (eqv_coe B C hBC))
+    (iseqv_trans A B C (eqv_coe A B hAB) (eqv_coe B C hBC)
+       (eqv_iseqv A B hAB) (eqv_iseqv B C hBC)).
+
+(; III Equality ;)
+
+(; III.1 Definition ;)
+
+def bool_eq : 2 -> 2 -> 2.
+[] bool_eq tt tt --> tt
+[] bool_eq tt ff --> ff
+[] bool_eq ff tt --> ff
+[] bool_eq ff ff --> tt.
+
+def is_tt (b : 2) : type := if (b => U) b unit empty.
+
+def Bool_eq (b1 : 2) (b2 : 2) : Type := term (is_tt (bool_eq b1 b2)).
+
+def bool_eq_refl : b : 2 -> Bool_eq b b.
+[] bool_eq_refl tt --> I
+[] bool_eq_refl ff --> I.
+
+def bool_eq_sym : b1 : 2 -> b2 : 2 -> Bool_eq b1 b2 -> Bool_eq b2 b1.
+[] bool_eq_sym tt tt _ --> I
+[h] bool_eq_sym tt ff h --> h
+[h] bool_eq_sym ff tt h --> h
+[] bool_eq_sym ff ff _ --> I.
+
+def bool_eq_trans : b1 : 2 -> b2 : 2 -> b3 : 2 ->
+                    Bool_eq b1 b2 -> Bool_eq b2 b3 -> Bool_eq b1 b3.
+[] bool_eq_trans tt _ tt _ _ --> I
+[] bool_eq_trans ff _ ff _ _ --> I
+[h] bool_eq_trans tt tt ff _ h --> h
+[h] bool_eq_trans tt ff ff h _ --> h
+[h] bool_eq_trans ff tt tt h _ --> h
+[h] bool_eq_trans ff ff tt _ h --> h.
+
+def bool_eq_tt_if : b : 2 -> Bool_eq b tt ->
+                    A : type -> t : term A -> f : term A ->
+                    P : (term A -> type) ->
+                    term (P (if (__ => A) b t f)) -> term (P t).
+[a] bool_eq_tt_if tt _ _ _ _ _ a --> a
+[h,P,t] bool_eq_tt_if ff h _ t _ P _ --> bang h (P t).
+
+
+def bool_eq_ff_if : b : 2 -> Bool_eq b ff ->
+                    A : type -> t : term A -> f : term A ->
+                    P : (term A -> type) ->
+                    term (P (if (__ => A) b t f)) -> term (P f).
+[h,P,f] bool_eq_ff_if tt h _ _ f P _ --> bang h (P f)
+[a] bool_eq_ff_if ff _ _ _ _ _ a --> a.
+
+
+(; (eq) is to be defined later ;)
+def eq : A : type -> term A -> term A -> type.
+def Eq (A : type) (a : term A) (b : term A) : Type := term (eq A a b).
+
+[] eq empty _ _ --> unit
+[] eq unit _ _ --> unit
+[b1,b2] eq bool b1 b2 --> is_tt (bool_eq b1 b2)
+[A,B,ab,ab'] eq (prod A B) ab ab' -->
+  prod
+    (eq A (fst A B ab) (fst A B ab'))
+    (eq B (snd A B ab) (snd A B ab'))
+[A,B,f,g] eq (pi A B) f g --> pi A (x => eq (B x) (app A B f x) (app A B g x))
+[A,B,ab,ab'] eq (subset A B) ab ab' -->
+  eq A (witness A B ab) (witness A B ab')
+[A,B] eq U A B --> eqv A B.
+
+(; III.2 Reflexivity ;)
+
+def refl : A : type -> a : term A -> Eq A a a.
+[] refl empty _ --> I
+[] refl unit _ --> I
+[b] refl bool b --> bool_eq_refl b
+[A,B,ab] refl (prod A B) ab -->
+  pair (eq A (fst A B ab) (fst A B ab))
+       (eq B (snd A B ab) (snd A B ab))
+       (refl A (fst A B ab))
+       (refl B (snd A B ab))
+[A,B,f] refl (pi A B) f -->
+  lam A (x => eq (B x) (app A B f x) (app A B f x))
+   (x => refl (B x) (app A B f x))
+[A,B,ab] refl (subset A B) ab -->
+  refl A (witness A B ab)
+[A] refl U A --> eqv_refl A.
+
+(; III.3 Symmetry ;)
+
+def sym : A : type -> a : term A -> b : term A -> Eq A a b -> Eq A b a.
+[] sym empty _ _ _ --> I
+[] sym unit _ _ _ --> I
+[b1,b2,h] sym bool b1 b2 h --> bool_eq_sym b1 b2 h
+[A,B,ab,ab',h] sym (prod A B) ab ab' h -->
+  pair (eq A (fst A B ab') (fst A B ab)) (eq B (snd A B ab') (snd A B ab))
+       (sym A (fst A B ab) (fst A B ab')
+            (fst (eq A (fst A B ab) (fst A B ab'))
+                 (eq B (snd A B ab) (snd A B ab')) h))
+       (sym B (snd A B ab) (snd A B ab')
+            (snd (eq A (fst A B ab) (fst A B ab'))
+                 (eq B (snd A B ab) (snd A B ab')) h))
+[A,B,f,g,h] sym (pi A B) f g h -->
+  lam A (x => eq (B x) (app A B g x) (app A B f x))
+    (x => sym (B x) (app A B f x) (app A B g x)
+       (app A (x => eq (B x) (app A B f x) (app A B g x)) h x))
+[A,B,ab,ab',h] sym (subset A B) ab ab' h -->
+  sym A
+    (witness A B ab)
+    (witness A B ab')
+    h
+[A,B,f] sym U A B f --> eqv_sym A B f.
+
+(; III.4 Transitivity ;)
+
+def trans : A : type -> a : term A -> b : term A -> c : term A ->
+            Eq A a b -> Eq A b c -> Eq A a c.
+[] trans empty _ _ _ _ _ --> I
+[] trans unit _ _ _ _ _ --> I
+[b1,b2,b3,h1,h2] trans bool b1 b2 b3 h1 h2 --> bool_eq_trans b1 b2 b3 h1 h2
+[A,B,ab,ab',ab'',h,h'] trans (prod A B) ab ab' ab'' h h' -->
+  pair (eq A (fst A B ab) (fst A B ab''))
+       (eq B (snd A B ab) (snd A B ab''))
+       (trans A
+         (fst A B ab)
+         (fst A B ab')
+         (fst A B ab'')
+         (fst
+            (eq A (fst A B ab) (fst A B ab'))
+            (eq B (snd A B ab) (snd A B ab'))
+            h)
+         (fst
+            (eq A (fst A B ab') (fst A B ab''))
+            (eq B (snd A B ab') (snd A B ab''))
+            h'))
+       (trans B
+         (snd A B ab)
+         (snd A B ab')
+         (snd A B ab'')
+         (snd
+            (eq A (fst A B ab) (fst A B ab'))
+            (eq B (snd A B ab) (snd A B ab'))
+            h)
+         (snd
+            (eq A (fst A B ab') (fst A B ab''))
+            (eq B (snd A B ab') (snd A B ab''))
+            h'))
+[A,B,f,g,h,l,l'] trans (pi A B) f g h l l' -->
+  lam A (x => eq (B x) (app A B f x) (app A B h x))
+    (x => trans (B x) (app A B f x) (app A B g x) (app A B h x)
+      (app A (x => eq (B x) (app A B f x) (app A B g x)) l x)
+      (app A (x => eq (B x) (app A B g x) (app A B h x)) l' x))
+[A,B,ab,ab',ab'',h,h'] trans (subset A B) ab ab' ab'' h h' -->
+  trans A
+    (witness A B ab)
+    (witness A B ab')
+    (witness A B ab'')
+    h h'
+[A,B,C,f,g] trans U A B C f g --> eqv_trans A B C f g.
+
+
+(; (refl, sym, trans) forms a groupoid ;)
+
+[A,a] sym A a a (refl A a) --> refl A a
+[A,a,b,h] sym A a b (sym A b a h) --> h
+[A,a,b,c,h,h'] sym A a c (trans A a b c h h') -->
+  trans A c b a (sym A b c h') (sym A a b h).
+
+[A,a,b,h] trans A a b a h (sym A a b h) --> refl A a
+[A,a,b,h] trans A b a b (sym A a b h) h --> refl A b
+[A,a,b,h] trans A a b b h (refl A b) --> h
+[A,a,b,h] trans A a a b (refl A a) h --> h
+[A,a,b,c,d,h,h',h''] trans A a b d h (trans A b c d h' h'') -->
+  trans A a c d (trans A a b c h h') h''
+[A,a,b,c,h,h'] trans A a c b (trans A a b c h h') (sym A b c h') --> h
+[A,a,b,c,h,h'] trans A a c b (trans A a b c h (sym A c b h')) h' --> h.
+
+
+(; III.6 Transport and Monotonicity ;)
+
+(; This is an axiom but not a problematic one because the result is in
+prop so it does not compromise canonicity ;)
+prop_bpi : X : type -> x : term X -> y : term X -> h : Eq X x y ->
+           P : (y : term X -> Eq X x y -> prop) ->
+           Proof (P x (refl X x)) -> Proof (P y h).
+
+(; This one would be a consequence of the former if we had prop as a
+fragment of type and bool_eq as a proposition (using the predicate
+(y => h => Bool_eq (P x (refl X x)) (P y h))). ;)
+
+bool_bpi : X : type -> x : term X -> y : term X -> h : Eq X x y ->
+           P : (y : term X -> Eq X x y -> 2) ->
+           Bool_eq (P x (refl X x)) (P y h).
+
+def bpi : X : type -> x : term X -> y : term X -> h : Eq X x y ->
+          P : (y : term X -> Eq X x y -> type) ->
+          term (P x (refl X x)) -> term (P y h).
+(; Required computation rules ;)
+[X,x,p] bpi X x x (refl X x) _ p --> p
+[X,x,y,z,P,h,h',p]
+  bpi X y z h' P
+     (bpi X x y h
+          {z => h'' => P z (trans X y x z (sym X x y h) h'')}
+          p)
+    -->
+  bpi X x z (trans X x y z h h')
+    (z => h'' => P z (trans X y x z (sym X x y h) h'')) p.
+(; Note the guard in the second rule, I do not know if it is possible to break it ;)
+
+(; We prove bpi by induction on the predicate P according to the following syntax
+   P ::= x => h => x    (identity function)
+       | __ => __ => _  (constant function)
+       | x => h => prod (A x h) (B x h)
+       | x => h => pi (A x h) (B x h)
+       | x => h => subset (A x h) (B x h)
+
+       | x => h => bang (t x h) U
+       | x => h => unit_elim (__ => U) (a x h)
+       | x => h => if (__ => U) (b x h) (t x h) (e x h)
+       | x => h => fst U (B x h) (t x h)
+       | x => h => snd (A x h) U (t x h)
+       | x => h => witness U (B x h) (t x h)
+       | x => h => app (A x h) U (f x h) (a x h)
+;)
+
+def unit_irrel (P : 1 -> type) (i : 1) (a : term (P i)) (j : 1) : term (P j) :=
+  app unit P
+    (arrapp (P i) (pi unit P)
+       (unit_elim (i => arr (P i) (pi unit P)) i
+         (arrlam (P I) (pi unit P)
+           (b : term (P I) =>
+            lam unit P
+              (j : 1 => unit_elim P j b))))
+       a) j.
+
+
+
+[A,B,f,p] bpi U A B f (x => __ => x) p --> arrapp A B (eqv_coe A B f) p
+[p] bpi _ _ _ _ (__ => __ => _) p --> p
+[X,A,B,x,y,h,z] bpi X x y h (x => h => prod (A x h) (B x h)) z -->
+  pair (A y h) (B y h)
+    (bpi X x y h (x => h => A x h) (fst (A x (refl X x)) (B x (refl X x)) z))
+    (bpi X x y h (x => h => B x h) (snd (A x (refl X x)) (B x (refl X x)) z))
+[X,A,B,x,y,h,f] bpi X x y h (x => h => pi (A x h) (B x h)) f -->
+  lam (A y h) (B y h) (z' =>
+    (z : term (A x (refl X x)) =>
+     bpi X x y h (y => h => B y h (bpi X x y h (w => hw => A w hw) z))
+       (app (A x (refl X x)) (B x (refl X x)) f z))
+    (bpi X y x (sym X x y h) (w => hw => A w (trans X x y w h hw)) z'))
+[X,x,y,h,A,B,z] bpi X x y h (y => h => subset (A y h) (B y h)) z -->
+  (wit : (Subset (A x (refl X x)) (B x (refl X x)) -> term (A x (refl X x))) =>
+   wp : (z : Subset (A x (refl X x)) (B x (refl X x)) ->
+         Proof (B x (refl X x) (wit z))) =>
+  wpair (A y h) (B y h)
+    (bpi X x y h (y => h => A y h) (wit z))
+    (imp_elim (B x (refl X x) (wit z))
+              (B y h (bpi X x y h (y => h => A y h) (wit z)))
+       (all_elim (subset (A x (refl X x)) (B x (refl X x)))
+            (z => imp (B x (refl X x) (wit z))
+                      (B y h (bpi X x y h (y => h => A y h) (wit z))))
+            (prop_bpi X x y h
+                (y => h => all (subset (A x (refl X x)) (B x (refl X x)))
+                  (z =>
+                   imp (B x (refl X x) (wit z))
+                       (B y h (bpi X x y h (y => h => A y h)
+                                   (wit z)))))
+                (all_intro (subset (A x (refl X x)) (B x (refl X x)))
+                     (z => imp (B x (refl X x) (wit z))
+                                      (B x (refl X x) (wit z)))
+                     (z => imp_intro
+                             (B x (refl X x) (wit z))
+                             (B x (refl X x) (wit z)) (h => h))))
+            z)
+       (wp z)))
+   (witness (A x (refl X x)) (B x (refl X x)))
+   (wproof (A x (refl X x)) (B x (refl X x)))
+[X,y,h,t] bpi X _ y h (y => h => bang (t y h) U) _ -->
+  bang (t y h) (bang (t y h) U)
+[X,x,y,h,i,a,z] bpi X x y h (y => h => unit_elim (__ => U) (i y h) (a y h)) z -->
+  unit_elim (i => unit_elim (__ => U) i (a y h)) (i y h)
+    (bpi X x y h (y => h => a y h)
+      (unit_irrel
+        (i => unit_elim (__ => U) i (a x (refl X x))) (i x (refl X x)) z I))
+[X,x,y,h,b,t,e,z] bpi X x y h (y => h => if (__ => U) (b y h) (t y h) (e y h)) z -->
+  arrapp (is_tt (bool_eq (b x (refl X x)) (b y h)))
+         (if (__ => U) (b y h) (t y h) (e y h))
+    (if (b' => arr (is_tt (bool_eq (b x (refl X x)) b'))
+                   (if (__ => U) b' (t y h) (e y h)))
+      (b y h)
+      (arrlam (is_tt (bool_eq (b x (refl X x)) tt)) (t y h)
+        (F : Bool_eq (b x (refl X x)) tt =>
+         bpi X x y h (y => h => t y h)
+           (bool_eq_tt_if (b x (refl X x)) F U (t x (refl X x)) (e x (refl X x))
+                          (A => A) z)))
+      (arrlam (is_tt (bool_eq (b x (refl X x)) ff)) (e y h)
+        (F : Bool_eq (b x (refl X x)) ff =>
+         bpi X x y h (y => h => e y h)
+           (bool_eq_ff_if (b x (refl X x)) F U (t x (refl X x)) (e x (refl X x))
+                          (A => A) z))))
+   (bool_bpi X x y h (y => h => b y h))
+[] bpi X x y h (y => h => app (A y h) (__ => U) (F y h) (a y h)) z -->
+  z : arrapp (A x (refl X x)) U (F x (refl X x)) (a x (refl X x))
+  ? : arrapp (A y h) U (F y h) (a y h)
+
+
+[] bpi X x y h (y => h => fst U (B y h) (t y h)) z -->
+  t y h : Prod U (B y h)
+  z : fst U (B x (refl X x)) (t x (refl X x))
+  : fst U (B y h) (t y h)
+
+  t y h == pair (fst (t y h)) (snd (t y h))
+  
+
+
+       (; | x => h => fst U (B x h) (t x h) ;)
+       (; | x => h => snd (A x h) U (t x h) ;)
+       (; | x => h => witness U (B x h) (t x h) ;)
+       (; | x => h => app (A x h) U (f x h) (a x h) ;)
+
+
+def transport (A : type) (P : term A -> type) (a : term A) (b : term A)
+              (h : Eq A a b) (p : term (P a)) : term (P b) :=
+  bpi A a b h (y => __ => P y) p.
+
+def monotonicity (X : type) (A : type) (f : term X -> term A)
+                 (x : term X) (y : term X) (h : Eq X x y) : Eq A (f x) (f y) :=
+  transport X (z => eq A (f x) (f z)) x y h (refl A (f x)).
+
+(; III.5 Proof irrelevance
+
+   Two proofs of the same proposition are equal. ;)
+def proof : prop -> type.
+[] proof false --> empty
+[] proof true --> unit
+[A,B] proof (and A B) --> prod (proof A) (proof B)
+[A,B] proof (imp A B) --> arr (proof A) (proof B)
+[A,B] proof (all A B) --> pi A (x => proof (B x)).
+
+proof_elim : P : prop -> term (proof P) -> Proof P.
+
+def PROOF (P : prop) := term (proof P).
+def PROJ1 (A : prop) (B : prop) := fst (proof A) (proof B).
+def PROJ2 (A : prop) (B : prop) := snd (proof A) (proof B).
+
+def proof_irrelevance : P : prop -> p1 : PROOF P -> p2 : PROOF P ->
+                        Eq (proof P) p1 p2.
+
+[] proof_irrelevance false _ _ --> I
+[] proof_irrelevance true _ _ --> I
+[A,B,p1,p2] proof_irrelevance (and A B) p1 p2 -->
+  pair (eq (proof A) (PROJ1 A B p1) (PROJ1 A B p2))
+       (eq (proof B) (PROJ2 A B p1) (PROJ2 A B p2))
+       (proof_irrelevance A (PROJ1 A B p1) (PROJ1 A B p2))
+       (proof_irrelevance B (PROJ2 A B p1) (PROJ2 A B p2))
+[A,B,p1,p2] proof_irrelevance (imp A B) p1 p2 -->
+  lam (proof A) (x => eq (proof B)
+                         (arrapp (proof A) (proof B) p1 x)
+                         (arrapp (proof A) (proof B) p2 x))
+    (x => proof_irrelevance B
+             (arrapp (proof A) (proof B) p1 x)
+             (arrapp (proof A) (proof B) p2 x))
+[A,B,p1,p2] proof_irrelevance (all A B) p1 p2 -->
+  lam A (x => eq (proof (B x))
+                 (app A (x => proof (B x)) p1 x)
+                 (app A (x => proof (B x)) p2 x))
+    (x => proof_irrelevance (B x)
+             (app A (x => proof (B x)) p1 x)
+             (app A (x => proof (B x)) p2 x)).
