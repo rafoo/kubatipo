@@ -1,0 +1,133 @@
+This directory contains some Coq experiments related to Homotopy Type
+Theory (HoTT for short).
+
+* File [[./eqv.v]]
+
+This file contains some basic definitions and results of HoTT without
+axioms.
+
+Equivalence is defined as follows:
+
+
+Definition pinv {A B} (f : A -> B) (g : B -> A) :=
+  forall x : B, f (g x) = x.
+
+Definition isEqv {A B} f :=
+  { g : B -> A &
+  { eta : pinv g f &
+  { eps : pinv f g &
+          forall x, f_equal f (eta x) = eps (f x)}}}.
+
+Definition eqv A B := sigT (@isEqv A B).
+
+Definition eqv_fun {A B} (e : eqv A B) : A -> B :=
+  let (f, _) := e in f.
+
+Coercion eqv_fun : eqv >-> Funclass.
+
+* File [[./strong_equivalence.v]]
+
+This file studies the folowing pretendent for a definition of isEqv:
+
+Inductive isStrongEqv : forall {A B} (f : A -> B), Type :=
+| isStrongEqv_id : forall A, isStrongEqv (id A).
+Definition seqv (A B : Type) := {f : A -> B & isStrongEqv f}.
+
+It has the following properties:
+
+Axiom free:
+- forall A B (f : A -> B), isStrongEqv(f) -> isEqv(f)
+- forall A B, eqv (seqv A B) (A = B)
+
+Assuming weak univalence (forall A B, eqv (eqv A B) (A = B)) and two
+well-known consequences (funext and forall f, isProp (isEqv f)):
+- forall A B (f : A -> B), eqv (isStrongEqv(f)) (isEqv(f))
+- forall A B (f : A -> B), isProp (isStrongEqv(f))
+
+From these, it easy to show that the weak univalence implies the
+strong one (forall A B, isEqv (id_to_eqv A B)).
+
+* File [[./heterogeneous.v]]
+
+This file is a comparison of several definitions of heterogeneous
+equalities in Coq. All the definitions take the form of an inductive
+type with one constructor for reflexivity but differ in the amount of
+information that is rendered in the type of the heterogeneous equality
+to relate the type arguments.
+
+- for heq0, the types are unrelated:
+  heq0 : forall {A B}, A -> B -> Type.
+- for heq1, we have a function from A to B:
+  heq1 : forall {A B}, (A -> B) -> A -> B -> Type.
+- for heq2, we have a function from A to B and a function from B to A:
+  heq2 : forall {A B}, (A -> B) -> (B -> A) -> A -> B -> Type.
+- for heq3, we have a type equivalence between A and B:
+  heq3 : forall {A B}, eqv A B -> A -> B -> Type.
+- finally for heq4, we have an homogeneous equality between A and B:
+  heq4 : forall {A B}, A = B -> A -> B -> Type.
+
+** Going down
+
+ It is trivial to remove some piece of information so we have the
+ following chain of implications: heq4 -> heq3 -> heq2 -> heq1 -> heq0.
+
+ More precisely, we have:
+
+ heq4 e a b -> heq3 (id_to_eqv e) a b
+ heq4 e a b -> heq2 (id_to_eqv e) (id_to_eqv (eq_sym e)) a b
+ heq4 e a b -> heq1 (id_to_eqv e) a b
+ heq4 e a b -> heq0 a b
+ heq3 f a b -> heq2 f (eqv_sym f) a b
+ heq3 f a b -> heq1 f a b
+ heq3 f a b -> heq0 a b
+ heq2 f g a b -> heq1 f a b
+ heq2 f g a b -> heq0 a b
+ heq1 f a b -> heq0 a b
+
+** Going up
+
+ Moreover, from heq0 we can prove that A = B to go all the way back to
+ heq0 but this costs an existential quantification: heq0 a b is
+ equivalent to {e : A = B & heq4 e a b}.
+
+ heq3 does not carry more information than heq1: the function from heq3
+ to heq1 is actually an equivalence. This result depends on the fact
+ that isEqv is a mere proposition, I do not know if it is possible to
+ prove this fact in MLTT without the functional extensionality axiom.
+
+ heq1 f a b is equivalent to ((isStrongEqv f) * (f a = b)) where "=" is
+ the usual homgeneous identity type.
+
+ heq1 f a b is equivalent to {g : B -> A & heq2 f g a b} and to {H :
+ isStrongEqv f & (heq4 (seqv_to_eq (existT _ f H)) a b)}.
+
+ heq4 e a b is equivalent to (eq_to_seqv e a = b) where eq_to_seqv is
+ the canonical map from A = B to (seqv A B).
+
+ Other moves up seem to require axioms.
+
+*** Functional extensionality
+
+  From functional extensionality (in a very weak form: (forall A f,
+  (forall x : A, f x = x) -> f = (fun x : A => x))), we can go from
+  heq1 f a b to heq2 f g a b where the missing function g is any
+  (pseudo-)inverse of f and we know that such a pseudo-inverse always
+  exists (because we have the chain of implications (heq1 f a b ->
+  isStrongEqv f -> isEqv f). However, I believe that heq1 and heq2 are
+  not equivalent in general, even assuming univalence.
+
+* File [[./heq1.v]]
+
+This file studies more closely the heq1 and (heq1 (id A)) relations in
+the axiom-free case.
+
+heq1 (id A) a b does not seem to be provably equivalent to a = b
+without assuming univalence. The equivalent of the based path
+induction principle for the relation (heq1 (id A)) is logically
+equivalent to (forall (e : heq1 (id A) a b), f_eq e = e) where f_eq is
+the canonical function of type (heq f a b -> heq (id A) (f a) b).
+
+More precisely, we have the following lemma:
+Lemma J'_id {A} {x y} (e : heq1 (id A) x y) {P : forall (x y : A), eq x y -> Type} :
+  P y y (refl y) -> P x y (eq_f e).
+
