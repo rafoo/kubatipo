@@ -3,43 +3,83 @@ Set Universe Polymorphism.
 Definition comp {A B C : Type} (f : A -> B) (g : B -> C) := fun x => g (f x).
 Definition id (A : Type) := fun x : A => x.
 
-Lemma eq_trans_assoc {A} {w x y z : A} (p1 : eq w x) (p2 : eq x y) (p3 : eq y z) :
-  eq_trans (eq_trans p1 p2) p3 = eq_trans p1 (eq_trans p2 p3).
+Inductive eq {A : Type} (a : A) : A -> Type := eq_refl : eq a a.
+
+Notation "a == b" := (eq a b) (at level 70).
+
+
+Lemma eq_sym {A} {x y : A} : x == y -> y == x.
 Proof.
-  destruct p3.
+  intros [].
+  reflexivity.
+Defined.
+
+Lemma eq_trans {A} {x y z : A} : x == y -> y == z -> x == z.
+Proof.
+  intros [] [].
+  reflexivity.
+Defined.
+
+Lemma eq_trans_assoc {A} {w x y z : A} (p1 : w == x) (p2 : x == y) (p3 : y == z) :
+  eq_trans (eq_trans p1 p2) p3 == eq_trans p1 (eq_trans p2 p3).
+Proof.
+  destruct p1, p2, p3.
   reflexivity.
 Defined.
 
 Lemma eq_trans_sym {A} {x y : A} (p1 : eq x y) :
-  eq_trans p1 (eq_sym p1) = eq_refl.
+  eq_trans p1 (eq_sym p1) == eq_refl x.
 Proof.
   destruct p1.
   reflexivity.
 Defined.
 
-Lemma eq_trans_sym_eq {A} {x y z : A} (p : x = y) (q : x = z) (r : y = z) :
-  q = eq_trans p r -> eq_trans (eq_sym p) q = r.
+Lemma eq_sym_trans {A} {x y : A} (p1 : eq x y) :
+  eq_trans (eq_sym p1) p1 == eq_refl y.
+Proof.
+  destruct p1.
+  reflexivity.
+Defined.
+
+Lemma eq_trans_refl {A} {x y : A} (p : x == y) : eq_trans p (eq_refl y) == p.
+Proof.
+  destruct p; reflexivity.
+Defined.
+
+Lemma eq_trans_sym_eq {A} {x y z : A} (p : x == y) (q : x == z) (r : y == z) :
+  q == eq_trans p r -> eq_trans (eq_sym p) q == r.
 Proof.
   destruct r; simpl; destruct q; simpl.
-  intros [].
-  reflexivity.
+  intro H.
+  assert (eq_refl x == p).
+  - apply (@eq_trans (x == x) (eq_refl x) (eq_trans p (eq_refl x)) p).
+    + apply H.
+    + apply eq_trans_refl.
+  - destruct X.
+    reflexivity.
 Defined.
 
-Lemma f_equal_id {A} {x y : A} (p : x = y) : f_equal (id A) p = p.
+Definition f_equal {A B} (f : A -> B) {x y : A} (p : x == y) : f x == f y.
 Proof.
   destruct p.
   reflexivity.
 Defined.
 
-Lemma f_equal_comp {A B C} (f : A -> B) (g : B -> C) x y (p : x = y) :
-  f_equal g (f_equal f p) = f_equal (comp f g) p.
+Lemma f_equal_id {A} {x y : A} (p : x == y) : f_equal (id A) p == p.
 Proof.
   destruct p.
   reflexivity.
 Defined.
 
-Lemma natural_transf {A B} {f g : A -> B} (H : forall x, f x = g x) x y (p : x = y) :
-  eq_trans (H x) (f_equal g p) = eq_trans (f_equal f p) (H y).
+Lemma f_equal_comp {A B C} (f : A -> B) (g : B -> C) x y (p : x == y) :
+  f_equal g (f_equal f p) == f_equal (comp f g) p.
+Proof.
+  destruct p.
+  reflexivity.
+Defined.
+
+Lemma natural_transf {A B} {f g : A -> B} (H : forall x, f x == g x) x y (p : x == y) :
+  eq_trans (H x) (f_equal g p) == eq_trans (f_equal f p) (H y).
 Proof.
   destruct p.
   simpl.
@@ -47,18 +87,18 @@ Proof.
   reflexivity.
 Defined.
 
-Definition isContr (A : Type) := {x : A & forall y : A, x = y}.
-Definition isProp A := forall a b : A, a = b.
+Definition isContr (A : Type) := {x : A & forall y : A, x == y}.
+Definition isProp A := forall a b : A, a == b.
 
 Definition funext_statement :=
-  forall A B (f g : forall x : A, B x), (forall x : A, f x = g x) -> f = g.
+  forall A B (f g : forall x : A, B x), (forall x : A, f x == g x) -> f == g.
 
 Definition pinv {A B} (f : A -> B) (g : B -> A) :=
-  forall x : B, f (g x) = x.
+  forall x : B, f (g x) == x.
 
 Definition qinv {A B} (f : A -> B) := {g : B -> A & ((pinv f g) * (pinv g f))%type}.
 
-Definition fiber {A B} (f : A -> B) (y : B) := {x : A & f x = y}.
+Definition fiber {A B} (f : A -> B) (y : B) := {x : A & f x == y}.
 
 (* We choose this definition for equivalence (contractible function)
 because a rather weak form of functional extensionality is enough to
@@ -78,7 +118,7 @@ Definition half_adjoint {A B} f :=
   { g : B -> A &
   { eta : pinv g f &
   { eps : pinv f g &
-          forall x, f_equal f (eta x) = eps (f x)}}}.
+          forall x, f_equal f (eta x) == eps (f x)}}}.
 
 Lemma qinv_half_adjoint {A B} (f : A -> B) : qinv f -> half_adjoint f.
   intros (g, (eps, eta)).
@@ -87,22 +127,24 @@ Lemma qinv_half_adjoint {A B} (f : A -> B) : qinv f -> half_adjoint f.
   exists (fun b => eq_trans (eq_sym (eps (f(g(b))))) (eq_trans (f_equal f (eta (g b))) (eps b))).
   intro a.
   symmetry.
-  assert (eta (g (f a)) = f_equal g (f_equal f (eta a))).
-  - assert (forall p, eq_trans (eta (g (f a))) p = eq_trans (f_equal g (f_equal f p)) (eta a)).
+  assert (eta (g (f a)) == f_equal g (f_equal f (eta a))).
+  - assert (forall p, eq_trans (eta (g (f a))) p == eq_trans (f_equal g (f_equal f p)) (eta a)).
     + intro p.
       destruct p.
       simpl.
       destruct (eta (g (f a))).
       reflexivity.
-    + specialize (H (eta a)).
-      apply (f_equal (fun e => eq_trans e (eq_sym (eta a)))) in H.
-      rewrite eq_trans_assoc in H.
-      rewrite eq_trans_sym in H.
-      simpl in H.
-      rewrite eq_trans_assoc in H.
-      rewrite eq_trans_sym in H.
-      exact H.
-  - rewrite H.
+    + specialize (X (eta a)).
+      apply (f_equal (fun e => eq_trans e (eq_sym (eta a)))) in X.
+      rewrite eq_trans_assoc in X.
+      rewrite eq_trans_sym in X.
+      simpl in X.
+      rewrite eq_trans_assoc in X.
+      rewrite eq_trans_sym in X.
+      apply (eq_trans (eq_sym (eq_trans_refl (eta (g (f a)))))).
+      apply (eq_trans X).
+      apply eq_trans_refl.
+  - rewrite X.
     apply eq_trans_sym_eq.
     rewrite f_equal_comp.
     symmetry.
@@ -146,8 +188,8 @@ Proof.
   intro x.
   unfold isEqv_inv.
   destruct (Hf (f x)) as ((x', Hx'), H').
-  specialize (H' (existT (fun x' => f x' = f x) x eq_refl)).
-  apply (f_equal (@projT1 A (fun x' => f x' = f x))) in H'.
+  specialize (H' (existT (fun x' => f x' == f x) x (eq_refl (f x)))).
+  apply (f_equal (@projT1 A (fun x' => f x' == f x))) in H'.
   exact H'.
 Defined.
 
@@ -178,15 +220,16 @@ Section with_funext.
     destruct a as (a, Ha).
     destruct b as (b, Hb).
     transitivity
-      (existT (fun x : A => forall y : A, x = y) a
+      (existT (fun x : A => forall y : A, x == y) a
               (fun y => eq_trans (Ha b) (Hb y))).
-    - f_equal.
+    - apply f_equal.
       apply funext.
       intro c.
       destruct (Hb c).
-      reflexivity.
+      apply eq_sym.
+      apply eq_trans_refl.
     - destruct (Ha b).
-      f_equal.
+      apply f_equal.
       apply funext.
       intro b.
       destruct (Hb b).
@@ -207,26 +250,26 @@ Lemma isEqv_id A : isEqv (id A).
 Proof.
   apply qinv_isEqv.
   exists (id A).
-  split; exact (fun x => eq_refl).
+  split; exact (fun x => eq_refl x).
 Defined.
 
 Definition eqv_refl A : eqv A A := existT _ (id A) (isEqv_id A).
 
-Lemma id_to_eqv {A B} : A = B -> eqv A B.
+Lemma id_to_eqv {A B} : A == B -> eqv A B.
 Proof.
   intros [].
   apply eqv_refl.
 Defined.
 
-Lemma f_equal_trans {A B} (f : A -> B) x y z (p : x = y) (q : y = z):
-  f_equal f (eq_trans p q) = eq_trans (f_equal f p) (f_equal f q).
+Lemma f_equal_trans {A B} (f : A -> B) x y z (p : x == y) (q : y == z):
+  f_equal f (eq_trans p q) == eq_trans (f_equal f p) (f_equal f q).
 Proof.
-  destruct q.
+  destruct p, q.
   reflexivity.
 Defined.
 
-Lemma f_equal_sym {A B} (f : A -> B) x y (p : x = y) :
-  f_equal f (eq_sym p) = eq_sym (f_equal f p).
+Lemma f_equal_sym {A B} (f : A -> B) x y (p : x == y) :
+  f_equal f (eq_sym p) == eq_sym (f_equal f p).
 Proof.
   destruct p.
   reflexivity.
@@ -290,11 +333,11 @@ Proof.
   exists (f a).
   intro y.
   rewrite <- H.
-  f_equal.
+  apply f_equal.
   apply Ha.
 Defined.
 
-Lemma happly {A B} (f g : forall x : A, B x) : f = g -> forall x, f x = g x.
+Lemma happly {A B} (f g : forall x : A, B x) : f == g -> forall x, f x == g x.
 Proof.
   intros [].
   reflexivity.
@@ -330,7 +373,7 @@ Definition total {A P Q} (f : forall x : A, P x -> Q x) :
   {x : A & P x} -> {x : A & Q x} :=
   (fun w => existT Q (projT1 w) (f (projT1 w) (projT2 w))).
 
-Definition transport {A} (P : A -> Type) {x y : A} (p : x = y) : P x -> P y.
+Definition transport {A} (P : A -> Type) {x y : A} (p : x == y) : P x -> P y.
 Proof.
   destruct p; auto.
 Defined.
@@ -355,7 +398,7 @@ Proof.
   unfold total, fiber.
   exists (existT P x p).
   simpl.
-  f_equal.
+  apply f_equal.
   exact H.
 Defined.
 
@@ -407,10 +450,10 @@ Section with_weak_funext.
     (forall x, isContr (P x)) -> isContr (forall x, P x).
 
   Definition codom_happly1 {A B} (f : forall x : A, B x) :=
-    {g : forall x, B x & forall x, f x = g x}.
+    {g : forall x, B x & forall x, f x == g x}.
 
   Lemma codom_happly1_to_fun {A B} (f : forall x : A, B x) :
-    codom_happly1 f -> forall x, {u : B x & f x = u}.
+    codom_happly1 f -> forall x, {u : B x & f x == u}.
   Proof.
     intros (g, H) x.
     exists (g x).
@@ -418,7 +461,7 @@ Section with_weak_funext.
   Defined.
 
   Lemma fun_to_codom_happly1 {A B} (f : forall x : A, B x) :
-    (forall x, {u : B x & f x = u}) -> codom_happly1 f.
+    (forall x, {u : B x & f x == u}) -> codom_happly1 f.
   Proof.
     intros H.
     exists (fun x => projT1 (H x)).
@@ -432,7 +475,7 @@ Section with_weak_funext.
     generalize g; clear g.
     apply fiberwise_eqv_total_rev.
     apply between_contr_isEqv.
-    - exists (existT _ f eq_refl).
+    - exists (existT _ f (eq_refl f)).
       intros (g, H).
       destruct H.
       reflexivity.
@@ -441,13 +484,13 @@ Section with_weak_funext.
         reflexivity.
       + apply weak_funext.
         intro x.
-        exists (existT _ (f x) eq_refl).
+        exists (existT _ (f x) (eq_refl _)).
         intros (y, Hy).
         destruct Hy.
         reflexivity.
   Qed.
 
-  Lemma happly_eqv {A B} (f g : forall x : A, B x) : eqv (f = g) (forall x, f x = g x).
+  Lemma happly_eqv {A B} (f g : forall x : A, B x) : eqv (f == g) (forall x, f x == g x).
   Proof.
     exists (happly f g).
     apply isEqv_happly.
@@ -460,9 +503,9 @@ Section with_weak_funext.
   Defined.
 
   Lemma funext_id {A B} {f : forall x : A, B x} :
-    funext A B f f (fun x => eq_refl (f x)) = eq_refl f.
+    funext A B f f (fun x => eq_refl (f x)) == eq_refl f.
   Proof.
-    change (funext A B f f (happly_eqv f f (eq_refl f)) = eq_refl f).
+    change (funext A B f f (happly_eqv f f (eq_refl f)) == eq_refl f).
     apply (eqv_sym_eta (happly_eqv f f)).
   Defined.
 
@@ -482,7 +525,7 @@ Proof.
 Defined.
 
 Lemma Dep_Funext (funext : FUNEXT) {A B} (f g : forall x : A, B x) :
-  (forall x, f x = g x) -> f = g.
+  (forall x, f x == g x) -> f == g.
 Proof.
   apply eqv_fun.
   apply eqv_sym.
@@ -491,19 +534,19 @@ Proof.
 Defined.
 
 Lemma Dep_Funext_funapp (funext : FUNEXT) {A B} (f g : forall x : A, B x) e :
-  Dep_Funext funext f g (fun x => happly f g e x) = e.
+  Dep_Funext funext f g (fun x => happly f g e x) == e.
 Proof.
   apply isEqv_inv_eta.
 Defined.
 
 Lemma Dep_Funext_refl (funext : FUNEXT) {A B} (f : forall x : A, B x) :
-  Dep_Funext funext f f (fun x => eq_refl) = eq_refl.
+  Dep_Funext funext f f (fun x => eq_refl (f x)) == eq_refl _.
 Proof.
-  exact (Dep_Funext_funapp funext f f eq_refl).
+  exact (Dep_Funext_funapp funext f f (eq_refl _)).
 Defined.
 
 Lemma comp_id_pinv_eqv {A B} (f : A -> B) (g : B -> A) :
-  FUNEXT -> eqv (pinv f g) (comp g f = id B).
+  FUNEXT -> eqv (pinv f g) (comp g f == id B).
 Proof.
   unfold FUNEXT.
   intro funext.
@@ -528,13 +571,13 @@ Lemma sigT_eqv_pinv {A B1 B2} {H : forall x : A, eqv (B1 x) (B2 x)} :
 Proof.
   intros (a, b).
   simpl.
-  assert ((H a) ((eqv_sym (H a)) b) = b).
+  assert ((H a) ((eqv_sym (H a)) b) == b).
   - generalize (H a).
     intros (F, HF).
     unfold eqv_sym.
     simpl.
     apply isEqv_inv_eps.
-  - rewrite H0.
+  - rewrite X.
     reflexivity.
 Defined.
 
@@ -543,13 +586,13 @@ Lemma sigT_eqv_pinv2 {A B1 B2} {H : forall x : A, eqv (B1 x) (B2 x)} :
 Proof.
   intros (a, b).
   simpl.
-  assert (((eqv_sym (H a)) ((H a) b)) = b).
+  assert (((eqv_sym (H a)) ((H a) b)) == b).
   - generalize (H a).
     intros (F, HF).
     unfold eqv_sym.
     simpl.
     apply isEqv_inv_eta.
-  - rewrite H0.
+  - rewrite X.
     reflexivity.
 Defined.
 
@@ -569,29 +612,27 @@ Proof.
   destruct HAB as (f, Hf).
   rewrite <- (isEqv_inv_eps _ Hf b1).
   rewrite <- (isEqv_inv_eps _ Hf b2).
-  f_equal.
+  apply f_equal.
   apply HA.
 Defined.
-
-Definition fib {A B} (f : A -> B) (y : B) := {x : A & f x = y}.
 
 Definition sigT_eqv_type {A P} (w w' : {x : A & P x}) :=
   let (x, p) := w in
   let (x', p') := w' in
-  {e : x = x' & eq_rect _ P p x' e = p'}.
+  {e : x == x' & transport P e p == p'}.
 
 Definition sigT_fun {A P} (w w' : {x : A & P x}) :
-  w = w' ->
+  w == w' ->
   sigT_eqv_type w w'.
 Proof.
   intros [].
   destruct w as (x, p).
-  exists eq_refl.
+  exists (eq_refl _).
   reflexivity.
 Defined.
 
 Definition sigT_fun_inv {A P} (w w' : {x : A & P x}) :
-  sigT_eqv_type w w' -> w = w'.
+  sigT_eqv_type w w' -> w == w'.
 Proof.
   destruct w as (x, p).
   destruct w' as (x', p').
@@ -604,7 +645,7 @@ Proof.
 Defined.
 
 Lemma sigT_eqv_eq {A P} (w w' : {x : A & P x}) :
-  eqv (w = w') (sigT_eqv_type w w').
+  eqv (w == w') (sigT_eqv_type w w').
 Proof.
   exists (sigT_fun w w').
   apply (isEqv_intro (sigT_fun_inv w w')).
@@ -622,8 +663,8 @@ Proof.
     reflexivity.
 Defined.
 
-Lemma fiber_path {A B} (f : A -> B) (y : B) x (p : f x = y) x' (p' : f x' = y) :
-  eqv (@eq (fib f y) (existT _ x p) (existT _ x' p')) {gamma : x = x' & eq_trans (f_equal f gamma) p' = p}.
+Lemma fiber_path {A B} (f : A -> B) (y : B) x (p : f x == y) x' (p' : f x' == y) :
+  eqv (@eq (fiber f y) (existT _ x p) (existT _ x' p')) {gamma : x == x' & eq_trans (f_equal f gamma) p' == p}.
 Proof.
   apply (eqv_trans (sigT_eqv_eq _ _)).
   simpl.
@@ -631,7 +672,7 @@ Proof.
   intro e.
   destruct e.
   simpl.
-  apply (@eqv_trans _ (p' = p)).
+  apply (@eqv_trans _ (p' == p)).
   - exists (@eq_sym _ p p').
     apply (isEqv_intro (@eq_sym _ p' p)).
     + intros [].
@@ -658,24 +699,28 @@ Proof.
   apply H.
 Defined.
 
-Lemma isProp_eq_is_contr A : isProp A -> forall x y : A, isContr (x = y).
+Lemma isProp_eq_is_contr A : isProp A -> forall x y : A, isContr (x == y).
 Proof.
   intros f x y.
   exists (f x y).
-  assert (forall z : A, forall p : z = y, p = eq_trans (eq_sym (f x z)) (f x y)).
+  assert (forall z : A, forall p : z == y, p == eq_trans (eq_sym (f x z)) (f x y)).
   - intros z p.
     symmetry.
     apply eq_trans_sym_eq.
     destruct p.
-    reflexivity.
-  - assert (forall e1 e2 : x = y, e1 = e2).
-    + specialize (H x).
+    apply eq_sym.
+    apply eq_trans_refl.
+  - assert (forall e1 e2 : x == y, e1 == e2).
+    + specialize (X x).
       intros e1 e2.
-      congruence.
-    + apply H0.
+      apply (@eq_trans _ _ (eq_trans (eq_sym (f x x)) (f x y))).
+      * apply X.
+      * apply eq_sym.
+        apply X.
+    + apply X0.
 Defined.
 
-Lemma isProp_eq A : isProp A -> forall x y : A, isProp (x = y).
+Lemma isProp_eq A : isProp A -> forall x y : A, isProp (x == y).
 Proof.
   intros H x y.
   apply isContr_isProp.
@@ -728,7 +773,7 @@ Proof.
 Defined.
 
 Lemma isEqv_homotopy {A B} (f g : A -> B) :
-  isEqv f -> (forall x, f x = g x) -> isEqv g.
+  isEqv f -> (forall x, f x == g x) -> isEqv g.
 Proof.
   intros Hf Hfg.
   apply isEqv_qinv in Hf.

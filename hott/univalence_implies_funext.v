@@ -177,7 +177,7 @@ Proof.
   - intros U V w.
     apply (transport (weq_to_path_section _ _ w)).
     exact (paths_rect _ P' r' U V (weq_to_path w)).
-Defined.
+Qed.
 
 Theorem weq_exponential : forall {A B} (w : wequiv A B) C, wequiv (C -> A) (C -> B).
 Proof.
