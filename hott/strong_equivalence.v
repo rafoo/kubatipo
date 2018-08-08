@@ -169,18 +169,21 @@ Proof.
 Defined.
 
 
-(* We finally show that the following statements are equivalent:
+(*
+   We finally show that the following statements are equivalent:
    1. strong univalence : id_to_eqv is an equivalence
    2. funext + (A ≃ B) ≃ (A == B)
    3. eqv_induction (without beta)
    4. isEqv f -> isStrongEqv f
    5. eqv_induction (with beta)
    6. isEqv f ≃ isStrongEqv f
+ *)
 
+(*
    1->2 is folklore
  *)
 
-Section _2_to_3.
+Section from_weak_univ_and_funext_to_eqv_induction.
 
   Hypothesis funext : funext_statement.
   Hypothesis weak_univalence : forall A B, eqv (eqv A B) (A == B).
@@ -252,9 +255,9 @@ Section _2_to_3.
     eqv_induction P A (eqv_refl A) == id _ :=
     eqv_eqind_id A (eqv_refl A).
 
-End _2_to_3.
+End from_weak_univ_and_funext_to_eqv_induction.
 
-Section _3_to_4.
+Section from_eqv_induction_and_isEqv_to_isStrongEqv.
 
   Variable eqv_induction : forall A (P : forall B, eqv A B -> Type) B e,
     P A (eqv_refl A) -> P B e.
@@ -272,9 +275,9 @@ Section _3_to_4.
     exact (eqv_to_isStrongEqv g).
   Defined.
 
-End _3_to_4.
+End from_eqv_induction_and_isEqv_to_isStrongEqv.
 
-Section _4_to_5.
+Section from_eqvtoseqv_to_eqv_induction.
 
   Hypothesis iseqv_to_seqv : forall A B (f : A -> B), isEqv f -> isStrongEqv f.
 
@@ -390,9 +393,9 @@ Section _4_to_5.
     eqv_induction' P A (eqv_refl A) == id _ :=
     eqv_ind_id A (eqv_refl A).
 
-End _4_to_5.
+End from_eqvtoseqv_to_eqv_induction.
 
-Section _5_to_6.
+Section from_eqv_induction_to_eqv_equivalence.
 
   Variable eqv_induction : forall A (P : forall B, eqv A B -> Type) B e,
     P A (eqv_refl A) -> P B e.
@@ -426,9 +429,9 @@ Section _5_to_6.
       apply isProp_isEqv.
       exact (funext (@iseqv_to_seqv)).
   Defined.
-End _5_to_6.
+End from_eqv_induction_to_eqv_equivalence.
 
-Section _6_to_1.
+Section from_eqv_equivalence_to_univalence.
   Hypothesis iseqv_eqv_isseqv : forall A B (f : A -> B), eqv (isEqv f) (isStrongEqv f).
 
   Lemma eqv_to_seqv' {A B} : eqv A B -> seqv A B.
@@ -446,11 +449,16 @@ Section _6_to_1.
     apply eqv_refl.
   Defined.
 
+  Lemma isProp_isEqv' {A B} {f : A -> B} : isProp (isEqv f).
+  Proof.
+    apply isProp_isEqv.
+    exact (funext (@iseqv_eqv_isseqv)).
+  Qed.
+
   Lemma isProp_isStrongEqv {A B} {f : A -> B} : isProp (isStrongEqv f).
   Proof.
     refine (isProp_eqv _ (iseqv_eqv_isseqv _ _ f)).
-    apply isProp_isEqv.
-    exact (funext (@iseqv_eqv_isseqv)).
+    apply isProp_isEqv'.
   Defined.
 
   Lemma eqv_eqv_seqv' {A B} : eqv (eqv A B) (seqv A B).
@@ -469,8 +477,7 @@ Section _6_to_1.
       destruct (g Hf).
       unfold eqv_refl.
       apply f_equal.
-      apply isProp_isEqv.
-      exact (funext (@iseqv_eqv_isseqv)).
+      apply isProp_isEqv'.
   Defined.
 
   Lemma ua {A B} : eqv (eqv A B) (A == B).
@@ -507,7 +514,7 @@ Section _6_to_1.
       apply ua_sym_refl.
   Defined.
 
-End _6_to_1.
+End from_eqv_equivalence_to_univalence.
 
 Section corollaries.
 
