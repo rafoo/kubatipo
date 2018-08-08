@@ -6,7 +6,8 @@ Require Setoid.
 Inductive isStrongEqv : forall {A B} (f : A -> B), Type :=
 | isStrongEqv_id : forall A, isStrongEqv (id A).
 
-(* The main result is Univalence -> (forall f, eqv (isEqv f) (isStrongEqv f)) *)
+(* The main result is Univalence <-> (forall f, eqv (isEqv f) (isStrongEqv f))
+                                 <-> (forall f, qinv f -> isStrongEqv f) *)
 
 Definition seqv (A B : Type) := {f : A -> B & isStrongEqv f}.
 Definition seqv_fun A B (e : seqv A B) : A -> B :=
@@ -96,14 +97,20 @@ Defined.
 Lemma seqv_to_eqv {A B} : seqv A B -> eqv A B.
 Proof.
   intros (f, Hf).
-  destruct Hf.
-  apply eqv_refl.
+  exists f.
+  apply (isEqv_intro (seqv_inv_fun (existT _ f Hf))).
+  - intro.
+    destruct Hf.
+    reflexivity.
+  - intro.
+    destruct Hf.
+    reflexivity.
 Defined.
 
 Lemma seqv_eqv_eq {A B} : eqv (seqv A B) (A = B).
 Proof.
   exists seqv_to_eq.
-  apply (eqv_intro eq_to_seqv).
+  apply (isEqv_intro eq_to_seqv).
   - intros [].
     reflexivity.
   - intros (f, Hf).
@@ -137,7 +144,7 @@ Defined.
 Lemma eqv_heq_heq2 {A B} {f : A -> B} {a b} : eqv (heq f a b) (heq2 f a b).
 Proof.
   exists heq_heq2.
-  apply (eqv_intro heq2_heq).
+  apply (isEqv_intro heq2_heq).
   - intros (e, Hf).
     destruct Hf.
     destruct e.
@@ -148,18 +155,10 @@ Defined.
 
 Section with_univalence.
 
-  (* Variable univalence : forall A B, isEqv (@id_to_eqv A B). *)
+  Hypothesis univalence : forall A B, eqv (eqv A B) (A = B).
 
-  Variable univalence : forall A B, eqv (eqv A B) (A = B).
-
-  Definition ua {A B} : eqv A B -> A = B := univalence A B.
-
-  (* This is a notorious consequence of the univalence axiom *)
   Hypothesis funext : forall A B (f g : forall x : A, B x),
       (forall x, f x = g x) -> (fun x => f x) = (fun x => g x).
-
-  (* This is proved in the HoTT book using funext *)
-  Hypothesis isProp_isEqv : forall A B (f : A -> B), isProp (isEqv f).
 
   Lemma eqv_is_eq : eqv = eq.
   Proof.
@@ -167,7 +166,7 @@ Section with_univalence.
     intro A.
     apply funext.
     intro B.
-    apply ua.
+    apply univalence.
     apply univalence.
   Defined.
 
@@ -251,13 +250,14 @@ Section with_univalence.
   Theorem eqv_eqv_seqv {A B} (f : A -> B) : eqv (isEqv f) (isStrongEqv f).
   Proof.
     exists (isEqv_to_isStrongEqv f).
-    apply (eqv_intro (isStrongEqv_to_isEqv f)).
+    apply (isEqv_intro (isStrongEqv_to_isEqv f)).
     - intros [].
       simpl.
       unfold isEqv_to_isStrongEqv.
       exact (eqv_to_isStrongEqv_refl A0).
     - intro Hf.
       apply isProp_isEqv.
+      exact funext.
   Defined.
 
   (* Corrolaries: forall f, isProp (isStrongEqv f) *)
@@ -266,6 +266,7 @@ Section with_univalence.
   Proof.
     refine (isProp_eqv _ (eqv_eqv_seqv f)).
     apply isProp_isEqv.
+    exact funext.
   Defined.
 
   Corollary heq_eqv_eq {A B} (f : seqv A B) {a b} : eqv (heq f a b) (f a = b).
@@ -276,7 +277,7 @@ Section with_univalence.
       apply eqv_prod.
       + apply eqv_refl.
       + apply isContr_unit.
-        apply isProp_isContr.
+        apply isProp_to_isContr.
         * destruct f.
           assumption.
         * apply isProp_isStrongEqv.
@@ -318,62 +319,181 @@ Section with_univalence.
       * destruct ua2 as (ua2, Hu).
         simpl.
         symmetry.
-        apply pinv_isEqv2.
+        apply isEqv_inv_eta.
       * f_equal.
         apply ua2_refl.
     + rewrite H.
       destruct (eqv_sym (ua2)).
       assumption.
   Defined.
-  (* We have shown that the weak version of univalence (eqv (eqv A B)
-  (A = B)) implies the strong one (isEqv (id_to_eqv)).  TODO: check
-  that funext and forall f, isProp (isEqv f) are consequences of the
-  weak version. *)
 
 End with_univalence.
 
 
 Section with_qinv_to_seqv.
+  Hypothesis iseqv_to_seqv : forall A B (f : A -> B), isEqv f -> isStrongEqv f.
 
-  Hypothesis qinv_to_seqv : forall A B (f : A -> B), qinv f -> isStrongEqv f.
-  Hypothesis isProp_isStrongEqv : forall A B (f : A -> B), isProp (isStrongEqv f).
-  Hypothesis isProp_isEqv : forall A B (f : A -> B), isProp (isEqv f).
+  Theorem seq_exponential : forall {A B} (s : seqv A B) C, seqv (C -> A) (C -> B).
+  Proof.
+    intros A B (s, H) C.
+    exists (fun h => comp h s).
+    destruct H.
+    apply isStrongEqv_id.
+  Defined.
+
+  Definition path_pred A := fun xy : A * A => fst xy = snd xy.
+
+  Definition path_space A := sigT (path_pred A).
+
+  Definition src A : seqv (path_space A) A.
+  Proof.
+    exists (fun p => fst (projT1 p)).
+    apply iseqv_to_seqv.
+    intros x.
+    eexists (existT _ (existT (fun (xy : A * A) => fst xy = snd xy) (x, x) (eq_refl x)) _).
+    intros [[[u v] p] q].
+    unfold path_pred in p.
+    simpl in * |- *.
+    destruct q.
+    destruct p.
+    reflexivity.
+  Defined.
+
+  Definition trg A : seqv (path_space A) A.
+  Proof.
+    exists (fun p => snd (projT1 p)).
+    apply iseqv_to_seqv.
+    intros x.
+    eexists (existT _ (existT (fun (xy : A * A) => fst xy = snd xy) (x, x) (eq_refl x)) _).
+    intros [[[u v] p] q].
+    unfold path_pred in p.
+    simpl in * |- *.
+    destruct q.
+    destruct p.
+    reflexivity.
+  Defined.
+
+  Lemma seq_injective U V : forall (s : seqv U V) x y, s x = s y -> x = y.
+  Proof.
+    intros (s, H) x y p.
+    destruct H.
+    exact p.
+  Qed.
+
+  Theorem extensionality {A B : Type} (f g : A -> B) : (forall x, f x = g x) -> f = g.
+  Proof.
+    intro p.
+    pose (d := fun x : A => existT (path_pred B) (f x, f x) (eq_refl (f x))).
+    pose (e := fun x : A => existT (path_pred B) (f x, g x) (p x)).
+    pose (src_compose := seq_exponential (src B) A).
+    pose (trg_compose := seq_exponential (trg B) A).
+    transitivity (projT1 trg_compose e); try auto.
+    transitivity (projT1 trg_compose d); try auto.
+    f_equal.
+    apply seq_injective with (s := src_compose).
+    reflexivity.
+  Qed.
+
+End with_qinv_to_seqv.
+
+
+Section with_qinv_to_seqv_and_funext.
+
+  Hypothesis iseqv_to_seqv : forall A B (f : A -> B), isEqv f -> isStrongEqv f.
+  Hypothesis funext :
+    forall A B (f g : forall x : A, B x), (forall x, f x = g x) -> f = g.
 
   Lemma eqv_to_seqv {A B} : eqv A B -> seqv A B.
   Proof.
-    intro f.
+    intros (f, Hf).
     exists f.
-    apply qinv_to_seqv.
-    exists (eqv_sym f).
-    split.
-    - destruct f as (f, Hf).
-      apply pinv_isEqv.
-    - destruct f as (f, Hf).
-      apply pinv_isEqv2.
+    apply iseqv_to_seqv.
+    exact Hf.
+  Defined.
+
+  Lemma seqv_ind A (P : forall B, seqv A B -> Type) B e B' e' :
+    P B e -> P B' e'.
+  Proof.
+    destruct e' as (f', H').
+    destruct H'.
+    destruct e as (f, H).
+    destruct H.
+    apply id.
+  Defined.
+
+  Lemma seqv_ind_id A P B e : seqv_ind A P B e B e = id (P B e).
+  Proof.
+    destruct e as (f, H).
+    destruct H.
+    reflexivity.
+  Defined.
+
+  Lemma seqv_to_eqv_to_seqv A B (e : eqv A B) : e = seqv_to_eqv (eqv_to_seqv e).
+  Proof.
+    destruct e as (f, H).
+    simpl.
+    f_equal.
+    apply isProp_isEqv.
+    exact funext.
+  Defined.
+
+  Lemma eqv_ind A (P : forall B, eqv A B -> Type) B e B' e' :
+    P B e -> P B' e'.
+  Proof.
+    intro p.
+    rewrite seqv_to_eqv_to_seqv.
+    pose (P' := fun B e => P B (seqv_to_eqv e)).
+    apply (seqv_ind _ P' B (eqv_to_seqv e) B' (eqv_to_seqv e')).
+    unfold P'.
+    rewrite <- seqv_to_eqv_to_seqv.
+    exact p.
+  Defined.
+
+  Lemma eqv_ind_id A P B e : eqv_ind A P B e B e = id (P B e).
+  Proof.
+    unfold eqv_ind.
+    rewrite seqv_ind_id.
+    unfold id.
+    generalize (seqv_to_eqv_to_seqv A B e).
+    intro H.
+    destruct H.
+    reflexivity.
+  Defined.
+
+  Lemma new_eqv_to_seqv {A B} : eqv A B -> seqv A B.
+  Proof.
+    intro e.
+    apply (eqv_ind A (fun B e => seqv A B) A (eqv_refl A) B e).
+    apply seqv_refl.
+  Defined.
+
+  Lemma new_seqv_to_eqv {A B} : seqv A B -> eqv A B.
+  Proof.
+    intro e.
+    apply (seqv_ind A (fun B e => eqv A B) A (seqv_refl A) B e).
+    apply eqv_refl.
   Defined.
 
   Lemma new_eqv_eqv_seqv {A B} : eqv (eqv A B) (seqv A B).
   Proof.
-    exists eqv_to_seqv.
-    apply (eqv_intro seqv_to_eqv).
+    exists new_eqv_to_seqv.
+    apply (isEqv_intro new_seqv_to_eqv).
     - intros (f, Hf).
       destruct Hf.
       simpl.
-      unfold eqv_to_seqv.
-      simpl.
-      f_equal.
-      apply isProp_isStrongEqv.
+      unfold new_eqv_to_seqv, new_seqv_to_eqv.
+      rewrite eqv_ind_id.
+      reflexivity.
     - intros (f, Hf).
-      simpl.
-      generalize
-        (qinv_to_seqv A B f
-                      (existT (fun g : B -> A => (pinv f g * pinv g f)%type)
-                              (isEqv_inv Hf) (pinv_isEqv Hf, pinv_isEqv2 Hf))).
-      intros Hf2.
-      destruct Hf2.
-      unfold eqv_refl.
-      f_equal.
-      apply isProp_isEqv.
+      unfold new_eqv_to_seqv, new_seqv_to_eqv.
+      assert (Hf2 : isStrongEqv f).
+      + apply iseqv_to_seqv.
+        assumption.
+      + destruct Hf2.
+        rewrite (isProp_isEqv funext (id A) Hf (isEqv_id A)).
+        rewrite eqv_ind_id.
+        rewrite seqv_ind_id.
+        reflexivity.
   Defined.
 
   Lemma univalence {A B} : eqv (eqv A B) (A = B).
@@ -381,4 +501,29 @@ Section with_qinv_to_seqv.
     apply (eqv_trans new_eqv_eqv_seqv seqv_eqv_eq).
   Defined.
 
-End with_qinv_to_seqv.
+  Lemma univalence_refl A : univalence (eqv_refl A) = eq_refl.
+  Proof.
+    unfold univalence.
+    simpl.
+    unfold comp.
+    unfold new_eqv_to_seqv.
+    rewrite eqv_ind_id.
+    reflexivity.
+  Defined.
+
+  Lemma univalence_sym_refl A : eqv_sym univalence (eq_refl A) = eqv_refl A.
+  Proof.
+    rewrite <- univalence_refl.
+    apply eqv_sym_eta.
+  Defined.
+
+  Lemma isEqv_id_to_eqv {A B} : isEqv (@id_to_eqv A B).
+  Proof.
+    apply (isEqv_homotopy (eqv_sym (@univalence A B))).
+    - destruct (eqv_sym (@univalence A B)) as (e, He).
+      exact He.
+    - intros [].
+      apply univalence_sym_refl.
+  Defined.
+
+End with_qinv_to_seqv_and_funext.

@@ -149,7 +149,7 @@ Lemma heq1to3_eqv {A B} {f : eqv A B} {a b} :
   eqv (heq1 f a b) (heq3 f a b).
 Proof.
   exists heq1to3.
-  apply (eqv_intro heq3to1).
+  apply (isEqv_intro heq3to1).
   - intro e.
     destruct e.
     simpl.
@@ -195,7 +195,7 @@ Lemma heq0to4_ex_eqv {A B} {a : A} {b : B} :
   eqv (heq0 a b) {e : A = B & heq4 e a b}.
 Proof.
   exists heq0to4_ex.
-  apply (eqv_intro heq4to0_ex).
+  apply (isEqv_intro heq4to0_ex).
   - intros (e, h4).
     destruct h4.
     reflexivity.
@@ -222,7 +222,7 @@ Defined.
 Lemma heq1to2_eqv {A B a b} {f : A -> B} : eqv (heq1 f a b) {g : B -> A & heq2 f g a b}.
 Proof.
   exists heq1to2_ex.
-  apply (eqv_intro (fun gh : {g : B -> A & heq2 f g a b} =>
+  apply (isEqv_intro (fun gh : {g : B -> A & heq2 f g a b} =>
                       let (_, h) := gh in heq2to1 h)).
   - intros (g, Hg).
     destruct Hg.
@@ -254,7 +254,7 @@ Defined.
 Lemma heq1to5_eqv {A B} {f : A -> B} {a b} : eqv (heq1 f a b) (heq5 f a b).
 Proof.
   exists heq1to5.
-  apply (eqv_intro heq5to1).
+  apply (isEqv_intro heq5to1).
   - intros (Hf, e).
     destruct Hf.
     unfold id in e.
@@ -294,7 +294,7 @@ Defined.
 Lemma StrongEqv_eq {A B} : eqv (A = B) (seqv A B).
 Proof.
   exists eq_to_seqv.
-  apply (eqv_intro seqv_to_eq).
+  apply (isEqv_intro seqv_to_eq).
   - intros (f, Hf).
     destruct Hf.
     reflexivity.
@@ -348,7 +348,7 @@ Lemma heq4to5_eqv {A B} {e : A = B} {a b} :
   eqv (heq4 e a b) (eq_to_seqv e a = b).
 Proof.
   exists heq4to5.
-  apply (eqv_intro heq5to4).
+  apply (isEqv_intro heq5to4).
   - intro h.
     destruct e.
     simpl in h.
@@ -398,7 +398,7 @@ Axiom functional_extensionality : forall A B (f g : forall x : A, B x), isEqv (i
 
 Definition funext {A B} (f g : forall x : A, B x) :
   (forall x : A, f x = g x) -> f = g
-  := isEqv_inv (functional_extensionality A B f g).
+  := isEqv_inv _ (functional_extensionality A B f g).
 
 Lemma funext_id {A} f : (forall x : A, f x = x) -> f = (fun x => x).
 Proof.
@@ -409,7 +409,7 @@ Lemma funext_inv1 {A B} {f g : forall x : A, B x} (p : f = g) :
   funext f g (id_to_fun f g p) = p.
 Proof.
   unfold funext.
-  apply pinv_isEqv2.
+  apply isEqv_inv_eta.
 Defined.
 
 Lemma funext_refl {A B} {f : forall x : A, B x} :
@@ -423,7 +423,7 @@ Lemma fun_is_id_to_fun {A B} {f g : forall x : A, B x} (h : forall x, f x = g x)
 Proof.
   unfold funext.
   symmetry.
-  apply pinv_isEqv.
+  apply isEqv_inv_eps.
 Defined.
 
 Lemma eq_is_funext {A B} {f g : forall x : A, B x} (h : f = g) :
@@ -431,7 +431,7 @@ Lemma eq_is_funext {A B} {f g : forall x : A, B x} (h : f = g) :
 Proof.
   unfold funext.
   symmetry.
-  apply pinv_isEqv2.
+  apply isEqv_inv_eta.
 Defined.
 
 Lemma funext_inj {A B} {f g : forall x : A, B x} (h1 h2 : forall x, f x = g x) :
@@ -458,11 +458,11 @@ Proof.
 Defined.
 
 Lemma heq1to2_alleqv {A B} {f : A -> B} {Hf : isEqv f} {a b} :
-  heq1 f a b -> heq2 f (isEqv_inv Hf) a b.
+  heq1 f a b -> heq2 f (isEqv_inv f Hf) a b.
 Proof.
   intro H.
   apply heq1to2_all.
-  + apply pinv_isEqv.
+  + apply isEqv_inv_eps.
   + assumption.
 Defined.
 
@@ -513,12 +513,12 @@ Section with_univalence.
 
 Variable univalence : forall A B, isEqv (@id_to_eqv A B).
 
-Definition ua {A B} : eqv A B -> A = B := isEqv_inv (univalence A B).
+Definition ua {A B} : eqv A B -> A = B := isEqv_inv _ (univalence A B).
 
 Lemma ua_inv1 {A B} (p : A = B) : ua (id_to_eqv p) = p.
 Proof.
   unfold ua.
-  apply pinv_isEqv2.
+  apply isEqv_inv_eta.
 Defined.
 
 Lemma ua_refl A : ua (eqv_refl A) = eq_refl A.
@@ -530,7 +530,7 @@ Lemma eqv_is_ua {A B} (f : eqv A B) : f = id_to_eqv (ua f).
 Proof.
   unfold ua.
   symmetry.
-  apply pinv_isEqv.
+  apply isEqv_inv_eps.
 Defined.
 
 
@@ -582,7 +582,7 @@ Defined.
 Definition NOT : eqv bool bool.
 Proof.
   exists negb.
-  apply (eqv_intro negb); apply pinv_negb.
+  apply (isEqv_intro negb); apply pinv_negb.
 Defined.
 
 Definition heq1_example: heq1 negb true false :=
