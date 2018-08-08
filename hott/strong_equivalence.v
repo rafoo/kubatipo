@@ -1,6 +1,5 @@
 Set Universe Polymorphism.
-Require Import eqv.
-Require Setoid.
+Require Export eqv.
 
 (* This file studies the properties of the following inductive type: *)
 Inductive isStrongEqv : forall {A B} (f : A -> B), Type :=
@@ -10,24 +9,26 @@ Inductive isStrongEqv : forall {A B} (f : A -> B), Type :=
                                  <-> (forall f, qinv f -> isStrongEqv f) *)
 
 Definition seqv (A B : Type) := {f : A -> B & isStrongEqv f}.
-Definition seqv_fun A B (e : seqv A B) : A -> B :=
+Notation "A ≡ B" := (seqv A B) (at level 70).
+
+Definition seqv_fun A B (e : A ≡ B) : A -> B :=
   let (f, _) := e in f.
 Coercion seqv_fun : seqv >-> Funclass.
 
-Lemma seqv_refl A : seqv A A.
+Lemma seqv_refl A : A ≡ A.
 Proof.
   exists (id A).
   apply isStrongEqv_id.
 Defined.
 
-Lemma seqv_inv_fun {A B} (f : seqv A B) : B -> A.
+Lemma seqv_inv_fun {A B} (f : A ≡ B) : B -> A.
 Proof.
   destruct f as (f, Hf).
   destruct Hf.
   apply id.
 Defined.
 
-Lemma seqv_sym {A B} (f : seqv A B) : seqv B A.
+Lemma seqv_sym {A B} (f : A ≡ B) : B ≡ A.
 Proof.
   exists (seqv_inv_fun f).
   destruct f as (f, Hf).
@@ -40,14 +41,14 @@ Proof.
   reflexivity.
 Defined.
 
-Lemma seqv_sym_sym {A B} (f : seqv A B) : seqv_sym (seqv_sym f) == f.
+Lemma seqv_sym_sym {A B} (f : A ≡ B) : seqv_sym (seqv_sym f) == f.
 Proof.
   destruct f as (f, Hf).
   destruct Hf.
   reflexivity.
 Defined.
 
-Lemma seqv_trans {A B C} : seqv A B -> seqv B C -> seqv A C.
+Lemma seqv_trans {A B C} : A ≡ B -> B ≡ C -> A ≡ C.
 Proof.
   intros (f, Hf) (g, Hg).
   exists (comp f g).
@@ -56,21 +57,21 @@ Proof.
   apply isStrongEqv_id.
 Defined.
 
-Lemma seqv_refl_trans {A B} (e : seqv A B) : seqv_trans (seqv_refl A) e = e.
+Lemma seqv_refl_trans {A B} (e : A ≡ B) : seqv_trans (seqv_refl A) e = e.
 Proof.
   destruct e as (f, Hf).
   destruct Hf.
   reflexivity.
 Defined.
 
-Lemma seqv_trans_refl {A B} (e : seqv A B) : seqv_trans e (seqv_refl B) = e.
+Lemma seqv_trans_refl {A B} (e : A ≡ B) : seqv_trans e (seqv_refl B) = e.
 Proof.
   destruct e as (f, Hf).
   destruct Hf.
   reflexivity.
 Defined.
 
-Lemma seqv_sym_trans {A B C} (e1 : seqv A B) (e2 : seqv B C) :
+Lemma seqv_sym_trans {A B C} (e1 : A ≡ B) (e2 : B ≡ C) :
   seqv_sym (seqv_trans e1 e2) = seqv_trans (seqv_sym e2) (seqv_sym e1).
 Proof.
   destruct e1 as (f, Hf).
@@ -80,7 +81,7 @@ Proof.
   reflexivity.
 Defined.
 
-Lemma seqv_to_eq {A B} : seqv A B -> A == B.
+Lemma seqv_to_eq {A B} : A ≡ B -> A == B.
 Proof.
   intro f.
   destruct f as (f, Hf).
@@ -88,7 +89,7 @@ Proof.
   reflexivity.
 Defined.
 
-Lemma eq_to_seqv {A B} : A == B -> seqv A B.
+Lemma eq_to_seqv {A B} : A == B -> A ≡ B.
 Proof.
   intros [].
   apply seqv_refl.
@@ -106,7 +107,7 @@ Proof.
     reflexivity.
 Defined.
 
-Lemma seqv_to_eqv {A B} : seqv A B -> eqv A B.
+Lemma seqv_to_eqv {A B} : A ≡ B -> A ≃ B.
 Proof.
   intros (f, Hf).
   exists f.
@@ -114,7 +115,7 @@ Proof.
   exact Hf.
 Defined.
 
-Lemma seqv_eqv_eq {A B} : eqv (seqv A B) (A == B).
+Lemma seqv_eqv_eq {A B} : (A ≡ B) ≃ (A == B).
 Proof.
   exists seqv_to_eq.
   apply (isEqv_intro eq_to_seqv).
@@ -125,7 +126,7 @@ Proof.
     reflexivity.
 Defined.
 
-Theorem seq_exponential : forall {A B} (s : seqv A B) C, seqv (C -> A) (C -> B).
+Theorem seq_exponential : forall {A B} (s : A ≡ B) C, (C -> A) ≡ (C -> B).
 Proof.
   intros A B (s, H) C.
   exists (fun h => comp h s).
@@ -156,7 +157,7 @@ Proof.
   apply refl.
 Defined.
 
-Lemma eqv_heq_heq2 {A B} {f : A -> B} {a b} : eqv (heq f a b) (heq2 f a b).
+Lemma eqv_heq_heq2 {A B} {f : A -> B} {a b} : heq f a b ≃ heq2 f a b.
 Proof.
   exists heq_heq2.
   apply (isEqv_intro heq2_heq).
@@ -186,7 +187,7 @@ Defined.
 Section from_weak_univ_and_funext_to_eqv_induction.
 
   Hypothesis funext : funext_statement.
-  Hypothesis weak_univalence : forall A B, eqv (eqv A B) (A == B).
+  Hypothesis weak_univalence : forall A B, (A ≃ B) ≃ (A == B).
 
   Lemma eqv_is_eq : eqv == eq.
   Proof.
@@ -233,13 +234,13 @@ Section from_weak_univ_and_funext_to_eqv_induction.
     apply has_eqind_eq.
   Defined.
 
-  Lemma eqv_eqind {A} (P : (forall B : Type, eqv A B -> Type)) B e B' e' :
+  Lemma eqv_eqind {A} (P : (forall B : Type, A ≃ B -> Type)) B e B' e' :
     P B e -> P B' e'.
   Proof.
     apply has_eqind_eqv.
   Defined.
 
-  Lemma eqv_eqind_id {A} {P : forall B, eqv A B -> Type} B e :
+  Lemma eqv_eqind_id {A} {P : forall B, A ≃ B -> Type} B e :
     eqv_eqind P B e B e == id (P B e).
   Proof.
     unfold eqv_eqind.
@@ -247,11 +248,11 @@ Section from_weak_univ_and_funext_to_eqv_induction.
     exact H.
   Defined.
 
-  Definition eqv_induction {A} (P : forall B, eqv A B -> Type) B e :
+  Definition eqv_induction {A} (P : forall B, A ≃ B -> Type) B e :
     P A (eqv_refl A) -> P B e :=
     eqv_eqind P A (eqv_refl A) B e.
 
-  Definition eqv_induction_beta {A} (P : forall B, eqv A B -> Type) :
+  Definition eqv_induction_beta {A} (P : forall B, A ≃ B -> Type) :
     eqv_induction P A (eqv_refl A) == id _ :=
     eqv_eqind_id A (eqv_refl A).
 
@@ -259,10 +260,10 @@ End from_weak_univ_and_funext_to_eqv_induction.
 
 Section from_eqv_induction_and_isEqv_to_isStrongEqv.
 
-  Variable eqv_induction : forall A (P : forall B, eqv A B -> Type) B e,
+  Variable eqv_induction : forall A (P : forall B, A ≃ B -> Type) B e,
     P A (eqv_refl A) -> P B e.
 
-  Lemma eqv_to_isStrongEqv {A B} (f : eqv A B) : isStrongEqv f.
+  Lemma eqv_to_isStrongEqv {A B} (f : A ≃ B) : isStrongEqv f.
   Proof.
     apply (eqv_induction A (fun B f => isStrongEqv f) B f).
     apply isStrongEqv_id.
@@ -271,7 +272,7 @@ Section from_eqv_induction_and_isEqv_to_isStrongEqv.
   Lemma isEqv_to_isStrongEqv {A B} (f : A -> B) : isEqv f -> isStrongEqv f.
   Proof.
     intro H.
-    pose (g := (existT _ f H : eqv A B)).
+    pose (g := (existT _ f H : A ≃ B)).
     exact (eqv_to_isStrongEqv g).
   Defined.
 
@@ -328,7 +329,7 @@ Section from_eqvtoseqv_to_eqv_induction.
     forall A B (f g : forall x : A, B x), (forall x, f x == g x) -> f == g :=
     eqv.funext weak_extensionality.
 
-  Lemma eqv_to_seqv {A B} : eqv A B -> seqv A B.
+  Lemma eqv_to_seqv {A B} : A ≃ B -> A ≡ B.
   Proof.
     intros (f, Hf).
     exists f.
@@ -336,7 +337,7 @@ Section from_eqvtoseqv_to_eqv_induction.
     exact Hf.
   Defined.
 
-  Lemma seqv_ind A (P : forall B, seqv A B -> Type) B e B' e' :
+  Lemma seqv_ind A (P : forall B, A ≡ B -> Type) B e B' e' :
     P B e -> P B' e'.
   Proof.
     destruct e' as (f', H').
@@ -353,7 +354,7 @@ Section from_eqvtoseqv_to_eqv_induction.
     reflexivity.
   Defined.
 
-  Lemma seqv_to_eqv_to_seqv A B (e : eqv A B) : e == seqv_to_eqv (eqv_to_seqv e).
+  Lemma seqv_to_eqv_to_seqv A B (e : A ≃ B) : e == seqv_to_eqv (eqv_to_seqv e).
   Proof.
     destruct e as (f, H).
     simpl.
@@ -362,7 +363,7 @@ Section from_eqvtoseqv_to_eqv_induction.
     exact funext.
   Defined.
 
-  Lemma eqv_ind A (P : forall B, eqv A B -> Type) B e B' e' :
+  Lemma eqv_ind A (P : forall B, A ≃ B -> Type) B e B' e' :
     P B e -> P B' e'.
   Proof.
     intro p.
@@ -385,11 +386,11 @@ Section from_eqvtoseqv_to_eqv_induction.
     reflexivity.
   Defined.
 
-  Definition eqv_induction' {A} (P : forall B, eqv A B -> Type) B e :
+  Definition eqv_induction' {A} (P : forall B, A ≃ B -> Type) B e :
     P A (eqv_refl A) -> P B e :=
     eqv_ind A P A (eqv_refl A) B e.
 
-  Definition eqv_induction_beta' {A} (P : forall B, eqv A B -> Type) :
+  Definition eqv_induction_beta' {A} (P : forall B, A ≃ B -> Type) :
     eqv_induction' P A (eqv_refl A) == id _ :=
     eqv_ind_id A (eqv_refl A).
 
@@ -397,10 +398,10 @@ End from_eqvtoseqv_to_eqv_induction.
 
 Section from_eqv_induction_to_eqv_equivalence.
 
-  Variable eqv_induction : forall A (P : forall B, eqv A B -> Type) B e,
+  Variable eqv_induction : forall A (P : forall B, A ≃ B -> Type) B e,
     P A (eqv_refl A) -> P B e.
 
-  Hypothesis eqv_induction_beta : forall A (P : forall B, eqv A B -> Type),
+  Hypothesis eqv_induction_beta : forall A (P : forall B, A ≃ B -> Type),
       eqv_induction A P A (eqv_refl A) == id _.
 
   Lemma iseqv_to_seqv {A B} (f : A -> B) : isEqv f -> isStrongEqv f.
@@ -434,7 +435,7 @@ End from_eqv_induction_to_eqv_equivalence.
 Section from_eqv_equivalence_to_univalence.
   Hypothesis iseqv_eqv_isseqv : forall A B (f : A -> B), eqv (isEqv f) (isStrongEqv f).
 
-  Lemma eqv_to_seqv' {A B} : eqv A B -> seqv A B.
+  Lemma eqv_to_seqv' {A B} : A ≃ B -> A ≡ B.
   Proof.
     intros (f, e).
     exists f.
@@ -442,7 +443,7 @@ Section from_eqv_equivalence_to_univalence.
     exact e.
   Defined.
 
-  Lemma seqv_to_eqv' {A B} : seqv A B -> eqv A B.
+  Lemma seqv_to_eqv' {A B} : A ≡ B -> A ≃ B.
   Proof.
     intros (f, e).
     destruct e.
@@ -461,7 +462,7 @@ Section from_eqv_equivalence_to_univalence.
     apply isProp_isEqv'.
   Defined.
 
-  Lemma eqv_eqv_seqv' {A B} : eqv (eqv A B) (seqv A B).
+  Lemma eqv_eqv_seqv' {A B} : eqv (A ≃ B) (A ≡ B).
   Proof.
     exists eqv_to_seqv'.
     apply (isEqv_intro seqv_to_eqv').
@@ -480,7 +481,7 @@ Section from_eqv_equivalence_to_univalence.
       apply isProp_isEqv'.
   Defined.
 
-  Lemma ua {A B} : eqv (eqv A B) (A == B).
+  Lemma ua {A B} : eqv (A ≃ B) (A == B).
   Proof.
     apply (eqv_trans eqv_eqv_seqv' seqv_eqv_eq).
   Defined.
@@ -518,9 +519,9 @@ End from_eqv_equivalence_to_univalence.
 
 Section corollaries.
 
-  Hypothesis iseqv_eqv_isseqv : forall A B (f : A -> B), eqv (isEqv f) (isStrongEqv f).
+  Hypothesis iseqv_eqv_isseqv : forall A B (f : A -> B), isEqv f ≃ isStrongEqv f.
 
-  Corollary heq_eqv_eq {A B} (f : seqv A B) {a b} : eqv (heq f a b) (f a == b).
+  Corollary heq_eqv_eq {A B} (f : A ≡ B) {a b} : heq f a b ≃ (f a == b).
   Proof.
     apply (eqv_trans eqv_heq_heq2).
     apply (@eqv_trans _ ((f a == b) * unit)%type).
@@ -536,7 +537,7 @@ Section corollaries.
     - apply eqv_prod_unit.
   Defined.
 
-  Corollary heq_id_eqv_eq {A} {a b} : eqv (heq (id A) a b) (a == b).
+  Corollary heq_id_eqv_eq {A} {a b} : heq (id A) a b ≃ (a == b).
   Proof.
     exact (@heq_eqv_eq A A (seqv_refl A) a b).
   Defined.

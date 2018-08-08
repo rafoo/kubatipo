@@ -108,7 +108,9 @@ Definition isEqv {A B} (f : A -> B) :=
 
 Definition eqv A B := sigT (@isEqv A B).
 
-Definition eqv_fun {A B} (e : eqv A B) : A -> B :=
+Notation "A ≃ B" := (eqv A B) (at level 70).
+
+Definition eqv_fun {A B} (e : A ≃ B) : A -> B :=
   let (f, _) := e in f.
 
 Coercion eqv_fun : eqv >-> Funclass.
@@ -253,9 +255,9 @@ Proof.
   split; exact (fun x => eq_refl x).
 Defined.
 
-Definition eqv_refl A : eqv A A := existT _ (id A) (isEqv_id A).
+Definition eqv_refl A : A ≃ A := existT _ (id A) (isEqv_id A).
 
-Lemma id_to_eqv {A B} : A == B -> eqv A B.
+Lemma id_to_eqv {A B} : A == B -> A ≃ B.
 Proof.
   intros [].
   apply eqv_refl.
@@ -290,28 +292,28 @@ Proof.
   - apply isEqv_inv_eps.
 Defined.
 
-Lemma eqv_sym {A B} : eqv A B -> eqv B A.
+Lemma eqv_sym {A B} : A ≃ B -> B ≃ A.
 Proof.
   intros (f, H).
   exists (isEqv_inv f H).
   apply inv_isEqv.
 Defined.
 
-Lemma eqv_sym_eps {A B} (f : eqv A B) : pinv f (eqv_sym f).
+Lemma eqv_sym_eps {A B} (f : A ≃ B) : pinv f (eqv_sym f).
 Proof.
   destruct f as (f, Hf).
   simpl.
   apply isEqv_inv_eps.
 Defined.
 
-Lemma eqv_sym_eta {A B} (f : eqv A B) : pinv (eqv_sym f) f.
+Lemma eqv_sym_eta {A B} (f : A ≃ B) : pinv (eqv_sym f) f.
 Proof.
   destruct f as (f, Hf).
   simpl.
   apply isEqv_inv_eta.
 Defined.
 
-Lemma eqv_trans {A B C} : eqv A B -> eqv B C -> eqv A C.
+Lemma eqv_trans {A B C} : A ≃ B -> B ≃ C -> A ≃ C.
 Proof.
   intros (f, Hf) (g, Hg).
   exists (comp f g).
@@ -359,7 +361,7 @@ Proof.
     apply HA.
 Defined.
 
-Lemma isContr_eqv {A B} (f : eqv A B) : isContr A -> isContr B.
+Lemma isContr_eqv {A B} (f : A ≃ B) : isContr A -> isContr B.
 Proof.
   intros (a, HA).
   exists (f a).
@@ -490,7 +492,7 @@ Section with_weak_funext.
         reflexivity.
   Qed.
 
-  Lemma happly_eqv {A B} (f g : forall x : A, B x) : eqv (f == g) (forall x, f x == g x).
+  Lemma happly_eqv {A B} (f g : forall x : A, B x) : (f == g) ≃ (forall x, f x == g x).
   Proof.
     exists (happly f g).
     apply isEqv_happly.
@@ -546,7 +548,7 @@ Proof.
 Defined.
 
 Lemma comp_id_pinv_eqv {A B} (f : A -> B) (g : B -> A) :
-  FUNEXT -> eqv (pinv f g) (comp g f == id B).
+  FUNEXT -> pinv f g ≃ (comp g f == id B).
 Proof.
   unfold FUNEXT.
   intro funext.
@@ -556,7 +558,7 @@ Proof.
 Defined.
 
 Lemma sigT_eqv_fun {A B1 B2} :
-  (forall x : A, eqv (B1 x) (B2 x)) ->
+  (forall x : A, B1 x ≃ B2 x) ->
   {x : A & B1 x} -> {x : A & B2 x}.
 Proof.
   intro H.
@@ -566,7 +568,7 @@ Proof.
   exact (H b).
 Defined.
 
-Lemma sigT_eqv_pinv {A B1 B2} {H : forall x : A, eqv (B1 x) (B2 x)} :
+Lemma sigT_eqv_pinv {A B1 B2} {H : forall x : A, B1 x ≃ B2 x} :
   pinv (sigT_eqv_fun H) (sigT_eqv_fun (fun x => eqv_sym (H x))).
 Proof.
   intros (a, b).
@@ -581,7 +583,7 @@ Proof.
     reflexivity.
 Defined.
 
-Lemma sigT_eqv_pinv2 {A B1 B2} {H : forall x : A, eqv (B1 x) (B2 x)} :
+Lemma sigT_eqv_pinv2 {A B1 B2} {H : forall x : A, B1 x ≃ B2 x} :
   pinv (sigT_eqv_fun (fun x => eqv_sym (H x))) (sigT_eqv_fun H).
 Proof.
   intros (a, b).
@@ -597,7 +599,7 @@ Proof.
 Defined.
 
 Lemma sigT_eqv {A B1 B2} :
-  (forall x, eqv (B1 x) (B2 x)) -> eqv {x : A & B1 x} {x : A & B2 x}.
+  (forall x, B1 x ≃ B2 x) -> {x : A & B1 x} ≃ {x : A & B2 x}.
 Proof.
   intro H.
   exists (sigT_eqv_fun H).
@@ -606,7 +608,7 @@ Proof.
   - apply sigT_eqv_pinv2.
 Defined.
 
-Lemma isProp_eqv {A B} : isProp A -> eqv A B -> isProp B.
+Lemma isProp_eqv {A B} : isProp A -> A ≃ B -> isProp B.
 Proof.
   intros HA HAB b1 b2.
   destruct HAB as (f, Hf).
@@ -645,7 +647,7 @@ Proof.
 Defined.
 
 Lemma sigT_eqv_eq {A P} (w w' : {x : A & P x}) :
-  eqv (w == w') (sigT_eqv_type w w').
+  (w == w') ≃ sigT_eqv_type w w'.
 Proof.
   exists (sigT_fun w w').
   apply (isEqv_intro (sigT_fun_inv w w')).
@@ -664,7 +666,7 @@ Proof.
 Defined.
 
 Lemma fiber_path {A B} (f : A -> B) (y : B) x (p : f x == y) x' (p' : f x' == y) :
-  eqv (@eq (fiber f y) (existT _ x p) (existT _ x' p')) {gamma : x == x' & eq_trans (f_equal f gamma) p' == p}.
+  (@eq (fiber f y) (existT _ x p) (existT _ x' p')) ≃ {gamma : x == x' & eq_trans (f_equal f gamma) p' == p}.
 Proof.
   apply (eqv_trans (sigT_eqv_eq _ _)).
   simpl.
@@ -728,7 +730,7 @@ Proof.
   assumption.
 Defined.
 
-Lemma eqv_prod {A A' B B'} : eqv A B -> eqv A' B' -> eqv (A * A') (B * B').
+Lemma eqv_prod {A A' B B'} : A ≃ B -> A' ≃ B' -> (A * A') ≃ (B * B').
 Proof.
   intros (f, H) (f', H').
   exists (fun c : A * A' => let (a, a') := c in (f a, f' a')).
@@ -743,7 +745,7 @@ Proof.
     reflexivity.
 Defined.
 
-Lemma eqv_prod_sigma {A B} : eqv (A * B) {x : A & B}.
+Lemma eqv_prod_sigma {A B} : (A * B) ≃ {x : A & B}.
 Proof.
   exists (fun c : A * B => let (a, b) := c in existT (fun _ => B) a b).
   apply (isEqv_intro (fun c : {x : A & B} => let (a, b) := c in (a, b))).
@@ -751,7 +753,7 @@ Proof.
   - intros (a, b). reflexivity.
 Defined.
 
-Lemma isContr_unit {A} : isContr A -> eqv A unit.
+Lemma isContr_unit {A} : isContr A -> A ≃ unit.
 Proof.
   intros (x, H).
   exists (fun _ => tt).
@@ -762,7 +764,7 @@ Proof.
     apply H.
 Defined.
 
-Lemma eqv_prod_unit {A} : eqv (A * unit) A.
+Lemma eqv_prod_unit {A} : (A * unit) ≃ A.
 Proof.
   exists (fun au : A * unit => let (a, _) := au in a).
   apply (isEqv_intro (fun a => (a, tt))).
