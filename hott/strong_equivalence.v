@@ -94,10 +94,9 @@ Proof.
   apply seqv_refl.
 Defined.
 
-Lemma seqv_to_eqv {A B} : seqv A B -> eqv A B.
+Lemma is_seqv_to_eqv {A B} {f : A -> B} : isStrongEqv f -> isEqv f.
 Proof.
-  intros (f, Hf).
-  exists f.
+  intro Hf.
   apply (isEqv_intro (seqv_inv_fun (existT _ f Hf))).
   - intro.
     destruct Hf.
@@ -105,6 +104,14 @@ Proof.
   - intro.
     destruct Hf.
     reflexivity.
+Defined.
+
+Lemma seqv_to_eqv {A B} : seqv A B -> eqv A B.
+Proof.
+  intros (f, Hf).
+  exists f.
+  apply is_seqv_to_eqv.
+  exact Hf.
 Defined.
 
 Lemma seqv_eqv_eq {A B} : eqv (seqv A B) (A = B).
@@ -329,79 +336,65 @@ Section with_univalence.
 
 End with_univalence.
 
+Theorem seq_exponential : forall {A B} (s : seqv A B) C, seqv (C -> A) (C -> B).
+Proof.
+  intros A B (s, H) C.
+  exists (fun h => comp h s).
+  destruct H.
+  apply isStrongEqv_id.
+Defined.
 
 Section with_qinv_to_seqv.
-  Hypothesis iseqv_to_seqv : forall A B (f : A -> B), isEqv f -> isStrongEqv f.
-
-  Theorem seq_exponential : forall {A B} (s : seqv A B) C, seqv (C -> A) (C -> B).
-  Proof.
-    intros A B (s, H) C.
-    exists (fun h => comp h s).
-    destruct H.
-    apply isStrongEqv_id.
-  Defined.
-
-  Definition path_pred A := fun xy : A * A => fst xy = snd xy.
-
-  Definition path_space A := sigT (path_pred A).
-
-  Definition src A : seqv (path_space A) A.
-  Proof.
-    exists (fun p => fst (projT1 p)).
-    apply iseqv_to_seqv.
-    intros x.
-    eexists (existT _ (existT (fun (xy : A * A) => fst xy = snd xy) (x, x) (eq_refl x)) _).
-    intros [[[u v] p] q].
-    unfold path_pred in p.
-    simpl in * |- *.
-    destruct q.
-    destruct p.
-    reflexivity.
-  Defined.
-
-  Definition trg A : seqv (path_space A) A.
-  Proof.
-    exists (fun p => snd (projT1 p)).
-    apply iseqv_to_seqv.
-    intros x.
-    eexists (existT _ (existT (fun (xy : A * A) => fst xy = snd xy) (x, x) (eq_refl x)) _).
-    intros [[[u v] p] q].
-    unfold path_pred in p.
-    simpl in * |- *.
-    destruct q.
-    destruct p.
-    reflexivity.
-  Defined.
-
-  Lemma seq_injective U V : forall (s : seqv U V) x y, s x = s y -> x = y.
-  Proof.
-    intros (s, H) x y p.
-    destruct H.
-    exact p.
-  Qed.
-
-  Theorem extensionality {A B : Type} (f g : A -> B) : (forall x, f x = g x) -> f = g.
-  Proof.
-    intro p.
-    pose (d := fun x : A => existT (path_pred B) (f x, f x) (eq_refl (f x))).
-    pose (e := fun x : A => existT (path_pred B) (f x, g x) (p x)).
-    pose (src_compose := seq_exponential (src B) A).
-    pose (trg_compose := seq_exponential (trg B) A).
-    transitivity (projT1 trg_compose e); try auto.
-    transitivity (projT1 trg_compose d); try auto.
-    f_equal.
-    apply seq_injective with (s := src_compose).
-    reflexivity.
-  Qed.
-
-End with_qinv_to_seqv.
-
-
-Section with_qinv_to_seqv_and_funext.
 
   Hypothesis iseqv_to_seqv : forall A B (f : A -> B), isEqv f -> isStrongEqv f.
-  Hypothesis funext :
-    forall A B (f g : forall x : A, B x), (forall x, f x = g x) -> f = g.
+
+  (* We first derive funext. This proof is taken from the HoTT book *)
+  Section contractible_family.
+    Variable A : Type.
+    Variable P : A -> Type.
+    Hypothesis C : forall x : A, isContr (P x).
+
+    Lemma alpha : seqv (A -> {x : A & P x}) (A -> A).
+    Proof.
+      apply seq_exponential.
+      exists (@projT1 A P).
+      apply iseqv_to_seqv.
+      intro x.
+      exists (existT (fun w => projT1 w = x) (existT P x (projT1 (C x))) (eq_refl x)).
+      intros ((x', p), Hx'x).
+      simpl in Hx'x.
+      destruct Hx'x.
+      apply (f_equal (fun p => existT (fun x0 : {x : A & P x} => projT1 x0 = x') (existT P x' p) (eq_refl x'))).
+      exact (projT2 (C x') p).
+    Defined.
+
+    Definition phi (f : forall x : A, P x) : fiber alpha (fun x : A => x) :=
+      existT _ (fun x => existT P x (f x)) eq_refl.
+
+    Definition psi (gp : fiber alpha (fun x : A => x)) (x : A) : P x.
+      destruct gp as (g, p).
+      unfold alpha in p.
+      simpl in p.
+      apply (transport (fun f => P (f x)) p).
+      exact (projT2 (g x)).
+    Defined.
+
+    Lemma weak_extensionality : isContr (forall x, P x).
+    Proof.
+      apply (isContr_retract psi phi).
+      - intro x.
+        reflexivity.
+      - destruct alpha as (alpha, Ha).
+        simpl.
+        apply is_seqv_to_eqv in Ha.
+        apply Ha.
+    Defined.
+
+  End contractible_family.
+
+  Definition funext :
+    forall A B (f g : forall x : A, B x), (forall x, f x = g x) -> f = g :=
+    eqv.funext weak_extensionality.
 
   Lemma eqv_to_seqv {A B} : eqv A B -> seqv A B.
   Proof.
@@ -526,4 +519,4 @@ Section with_qinv_to_seqv_and_funext.
       apply univalence_sym_refl.
   Defined.
 
-End with_qinv_to_seqv_and_funext.
+End with_qinv_to_seqv.

@@ -326,6 +326,79 @@ Proof.
   apply eqv_sym_eps.
 Defined.
 
+Definition total {A P Q} (f : forall x : A, P x -> Q x) :
+  {x : A & P x} -> {x : A & Q x} :=
+  (fun w => existT Q (projT1 w) (f (projT1 w) (projT2 w))).
+
+Definition transport {A} (P : A -> Type) {x y : A} (p : x = y) : P x -> P y.
+Proof.
+  destruct p; auto.
+Defined.
+
+Lemma fiber_total_fun {A P Q} (f : forall x : A, P x -> Q x) (w : sigT Q) :
+  (fiber (total f) w) -> (fiber (f (projT1 w)) (projT2 w)).
+Proof.
+  intros ((a, p), H).
+  unfold total in H.
+  simpl in H.
+  unfold fiber.
+  exists (transport P (f_equal (@projT1 A Q) H) p).
+  destruct H.
+  reflexivity.
+Defined.
+
+Lemma fiber_total_inv {A P Q} (f : forall x : A, P x -> Q x) (w : sigT Q) :
+  (fiber (f (projT1 w)) (projT2 w)) -> (fiber (total f) w).
+Proof.
+  destruct w as (x, v).
+  intros (p, H).
+  unfold total, fiber.
+  exists (existT P x p).
+  simpl.
+  f_equal.
+  exact H.
+Defined.
+
+Lemma fiber_total {A P Q} (f : forall x : A, P x -> Q x) w :
+  eqv (fiber (total f) w) (fiber (f (projT1 w)) (projT2 w)).
+Proof.
+  exists (fiber_total_fun f w).
+  apply (isEqv_intro (fiber_total_inv f w)).
+  - destruct w as (x, v).
+    simpl.
+    intros (p, H).
+    simpl.
+    destruct H.
+    reflexivity.
+  - intros ((a, p), H).
+    simpl.
+    destruct H.
+    reflexivity.
+Defined.
+
+Definition fiberwise_eqv {A P Q} (f : forall x : A, P x -> Q x) :=
+  forall x, isEqv (f x).
+
+Lemma fiberwise_eqv_total {A P Q} (f : forall x : A, P x -> Q x) :
+  fiberwise_eqv f -> isEqv (total f).
+Proof.
+  intro H.
+  unfold isEqv.
+  intros w.
+  apply (isContr_eqv (eqv_sym (fiber_total f w))).
+  apply H.
+Defined.
+
+Lemma fiberwise_eqv_total_rev {A P Q} (f : forall x : A, P x -> Q x) :
+  isEqv (total f) -> fiberwise_eqv f.
+Proof.
+  unfold isEqv.
+  intros H x.
+  intro q.
+  apply (isContr_eqv (fiber_total f (existT Q x q))).
+  apply H.
+Defined.
+
 Section with_weak_funext.
 
   (* The proof of weak-funext -> funext from the HoTT book. *)
@@ -333,86 +406,8 @@ Section with_weak_funext.
   Hypothesis weak_funext : forall A (P : A -> Type),
     (forall x, isContr (P x)) -> isContr (forall x, P x).
 
-
-  Definition total {A P Q} (f : forall x : A, P x -> Q x) :
-    {x : A & P x} -> {x : A & Q x} :=
-    (fun w => existT Q (projT1 w) (f (projT1 w) (projT2 w))).
-
-  Definition transport {A} (P : A -> Type) {x y : A} (p : x = y) : P x -> P y.
-  Proof.
-    destruct p; auto.
-  Defined.
-
-  Lemma fiber_total_fun {A P Q} (f : forall x : A, P x -> Q x) (w : sigT Q) :
-    (fiber (total f) w) -> (fiber (f (projT1 w)) (projT2 w)).
-  Proof.
-    intros ((a, p), H).
-    unfold total in H.
-    simpl in H.
-    unfold fiber.
-    exists (transport P (f_equal (@projT1 A Q) H) p).
-    destruct H.
-    reflexivity.
-  Defined.
-
-  Lemma fiber_total_inv {A P Q} (f : forall x : A, P x -> Q x) (w : sigT Q) :
-    (fiber (f (projT1 w)) (projT2 w)) -> (fiber (total f) w).
-  Proof.
-    destruct w as (x, v).
-    intros (p, H).
-    unfold total, fiber.
-    exists (existT P x p).
-    simpl.
-    f_equal.
-    exact H.
-  Defined.
-
-  Lemma fiber_total {A P Q} (f : forall x : A, P x -> Q x) w :
-    eqv (fiber (total f) w) (fiber (f (projT1 w)) (projT2 w)).
-  Proof.
-    exists (fiber_total_fun f w).
-    apply (isEqv_intro (fiber_total_inv f w)).
-    - destruct w as (x, v).
-      simpl.
-      intros (p, H).
-      simpl.
-      destruct H.
-      reflexivity.
-    - intros ((a, p), H).
-      simpl.
-      destruct H.
-      reflexivity.
-  Defined.
-
-  Definition fiberwise_eqv {A P Q} (f : forall x : A, P x -> Q x) :=
-    forall x, isEqv (f x).
-
-  Lemma fiberwise_eqv_total {A P Q} (f : forall x : A, P x -> Q x) :
-    fiberwise_eqv f -> isEqv (total f).
-  Proof.
-    intro H.
-    unfold isEqv.
-    intros w.
-    apply (isContr_eqv (eqv_sym (fiber_total f w))).
-    apply H.
-  Defined.
-
-  Lemma fiberwise_eqv_total_rev {A P Q} (f : forall x : A, P x -> Q x) :
-    isEqv (total f) -> fiberwise_eqv f.
-  Proof.
-    unfold isEqv.
-    intros H x.
-    intro q.
-    apply (isContr_eqv (fiber_total f (existT Q x q))).
-    apply H.
-  Defined.
-
   Definition codom_happly1 {A B} (f : forall x : A, B x) :=
     {g : forall x, B x & forall x, f x = g x}.
-
-  Definition happly1 {A B} (f : forall x : A, B x) :
-    {g : forall x, B x & f = g} -> codom_happly1 f :=
-    total (happly f).
 
   Lemma codom_happly1_to_fun {A B} (f : forall x : A, B x) :
     codom_happly1 f -> forall x, {u : B x & f x = u}.
@@ -432,48 +427,43 @@ Section with_weak_funext.
     exact Hu.
   Defined.
 
-  Lemma retract_codom_happly1 {A B} (f : forall x : A, B x) :
-    pinv (fun_to_codom_happly1 f) (codom_happly1_to_fun f).
+  Lemma isEqv_happly {A B} (f g : forall x : A, B x) : isEqv (happly f g).
   Proof.
-    intros (g, H).
-    reflexivity.
-  Defined.
-
-  Lemma isContr_codom_happly1 {A B} (f : forall x : A, B x) :
-    isContr (codom_happly1 f).
-  Proof.
-    apply (isContr_retract _ _ (retract_codom_happly1 f)).
-    apply weak_funext.
-    intro x.
-    exists (existT _ (f x) eq_refl).
-    intros (y, Hy).
-    destruct Hy.
-    reflexivity.
-  Defined.
-
-  Lemma isEqv_happly1 {A B} (f : forall x : A, B x) : isEqv (happly1 f).
-  Proof.
+    generalize g; clear g.
+    apply fiberwise_eqv_total_rev.
     apply between_contr_isEqv.
     - exists (existT _ f eq_refl).
       intros (g, H).
       destruct H.
       reflexivity.
-    - apply isContr_codom_happly1.
-  Defined.
+    - apply (isContr_retract (fun_to_codom_happly1 f) (codom_happly1_to_fun f)).
+      + intros (g, H).
+        reflexivity.
+      + apply weak_funext.
+        intro x.
+        exists (existT _ (f x) eq_refl).
+        intros (y, Hy).
+        destruct Hy.
+        reflexivity.
+  Qed.
 
-  Lemma isEqv_happly {A B} (f g : forall x : A, B x) : isEqv (happly f g).
+  Lemma happly_eqv {A B} (f g : forall x : A, B x) : eqv (f = g) (forall x, f x = g x).
   Proof.
-    generalize g.
-    apply fiberwise_eqv_total_rev.
-    apply (isEqv_happly1 f).
+    exists (happly f g).
+    apply isEqv_happly.
   Defined.
 
   Theorem funext : funext_statement.
   Proof.
     intros A B f g.
-    apply eqv_sym.
-    exists (happly f g).
-    apply isEqv_happly.
+    exact (eqv_sym (happly_eqv f g)).
+  Defined.
+
+  Lemma funext_id {A B} {f : forall x : A, B x} :
+    funext A B f f (fun x => eq_refl (f x)) = eq_refl f.
+  Proof.
+    change (funext A B f f (happly_eqv f f (eq_refl f)) = eq_refl f).
+    apply (eqv_sym_eta (happly_eqv f f)).
   Defined.
 
 End with_weak_funext.
